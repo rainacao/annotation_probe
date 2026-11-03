@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f3ed">
+  <title>Participant View — Annotation Lab</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f3ed;
+      --surface: #fffefa;
+      --ink: #20231f;
+      --muted: #73766f;
+      --line: #dedfd7;
+      --red: #df473d;
+      --blue: #2868c7;
+      --green: #517863;
+      --sans: "Avenir Next", Avenir, "Trebuchet MS", sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { display: flex; flex-direction: column; color: var(--ink); background: var(--paper); font-family: var(--sans); font-size: 13px; }
+    button { color: inherit; font: inherit; }
+    button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .topbar { height: 54px; flex: 0 0 54px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .top-meta { display: flex; align-items: center; gap: 12px; }
+    .position { color: var(--muted); font-family: var(--mono); font-size: 10px; white-space: nowrap; }
+    .next-button { padding: 0 14px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+    .fullscreen-button { width: 32px; height: 32px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-size: 17px; }
+    .stage-area { min-height: 0; flex: 1; display: grid; place-items: center; padding: 20px; overflow: hidden; background-color: #e8e8e1; background-image: repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(63, 67, 58, .025) 40px), repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(63, 67, 58, .025) 40px); }
+    .stage { position: relative; width: 100%; height: 100%; min-height: 120px; display: grid; place-items: center; }
+    .artwork, .annotations { position: absolute; display: none; max-width: none; user-select: none; }
+    .artwork { pointer-events: none; object-fit: fill; }
+    .annotations { touch-action: none; cursor: crosshair; }
+    .annotations.is-eraser { cursor: cell; }
+    .empty-state { width: min(390px, 100%); display: flex; flex-direction: column; align-items: center; padding: 24px; text-align: center; }
+    .empty-state[hidden] { display: none; }
+    .empty-mark { position: relative; width: 84px; height: 68px; margin-bottom: 18px; border: 1px solid #aaa99d; background: #f7f6f0; transform: rotate(-3deg); }
+    .empty-mark::before { position: absolute; top: 31px; left: 18px; width: 46px; height: 4px; background: var(--red); content: ""; transform: rotate(-18deg); }
+    .empty-state h1 { margin: 0 0 7px; font-family: var(--serif); font-size: 22px; font-weight: 500; }
+    .empty-state p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .toolbar { min-height: 68px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+    .navigation { display: flex; align-items: center; gap: 8px; padding-right: 10px; border-right: 1px solid var(--line); }
+    .nav-button, .icon-button { min-width: 36px; height: 36px; display: inline-grid; place-items: center; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+    .nav-button { font-size: 17px; }
+    .nav-button:disabled, .icon-button:disabled { opacity: .4; cursor: not-allowed; }
+    .tools { display: flex; align-items: center; gap: 8px; }
+    .tools[hidden] { display: none; }
+    .tool-set { display: flex; align-items: center; gap: 4px; padding-right: 9px; border-right: 1px solid var(--line); }
+    .tool-button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; border: 1px solid transparent; background: transparent; cursor: pointer; font-size: 11px; }
+    .tool-button:hover, .nav-button:hover:not(:disabled), .icon-button:hover:not(:disabled), .fullscreen-button:hover { background: #f4f3ed; }
+    .tool-button[aria-pressed="true"] { border-color: #d7d4be; background: #f8f4d8; }
+    .color-swatch { width: 12px; height: 12px; border: 1px solid rgba(0,0,0,.2); border-radius: 50%; }
+    .color-swatch.red { background: var(--red); }
+    .color-swatch.blue { background: var(--blue); }
+    .color-swatch.black { background: #111111; }
+    .eraser-symbol { width: 13px; height: 10px; border: 1px solid #686b63; transform: rotate(-42deg); }
+    .toolbar-divider { width: 1px; height: 30px; background: var(--line); }
+    .icon-button { font-size: 17px; }
+    @media (max-width: 650px) {
+      .topbar { height: 46px; flex-basis: 46px; padding: 0 11px; }
+      .brand-mark { width: 24px; height: 24px; flex-basis: 24px; }
+      .image-name { font-size: 14px; }
+      .stage-area { padding: 10px; }
+      .toolbar { min-height: 101px; flex-wrap: wrap; justify-content: center; gap: 5px; padding: 6px 8px; }
+      .navigation { width: 100%; justify-content: center; gap: 4px; padding: 0 0 5px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .nav-button, .icon-button { min-width: 32px; height: 34px; }
+      .tools { gap: 4px; }
+      .tool-set { gap: 1px; padding-right: 4px; }
+      .tool-button { min-height: 34px; gap: 4px; padding: 0 6px; font-size: 10px; }
+      .color-swatch { width: 10px; height: 10px; }
+      .size-stroke { width: 14px; }
+    }
+    @media (max-width: 410px) {
+      .tool-button { gap: 3px; padding: 0 4px; font-size: 9px; }
+      .navigation { border-right: 0; }
+      .toolbar-divider { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="top-meta">
+      <button class="nav-button next-button" id="topNextButton" type="button" aria-label="Next image" title="Next image" disabled>Next</button>
+      <span class="position" id="position">0 / 0</span>
+    </div>
+    <div class="top-meta">
+      <button class="fullscreen-button" id="fullscreenButton" type="button" title="Toggle fullscreen" aria-label="Toggle fullscreen">⛶</button>
+    </div>
+  </header>
+  <main class="stage-area">
+    <div class="stage" id="stage">
+      <img class="artwork" id="artwork" alt="Current study image">
+      <canvas class="annotations" id="annotations" aria-label="Participant annotation canvas"></canvas>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-mark" aria-hidden="true"></div>
+        <h1>Waiting for image sequence</h1>
+        <p>The experimenter will start the session shortly.</p>
+      </div>
+    </div>
+  </main>
+  <footer class="toolbar" aria-label="Participant controls">
+    <div class="navigation" aria-label="Image navigation">
+      <button class="nav-button" id="previousButton" type="button" aria-label="Previous image" title="Previous image" disabled>&lsaquo;</button>
+      <button class="nav-button" id="nextButton" type="button" aria-label="Next image" title="Next image" disabled>&rsaquo;</button>
+    </div>
+    <div class="tools" id="tools" role="toolbar" aria-label="Drawing tools">
+      <div class="tool-set" role="group" aria-label="Pen color">
+        <button class="tool-button" type="button" data-color="red" aria-pressed="true" title="Red pen"><span class="color-swatch red" aria-hidden="true"></span><span>Red</span></button>
+        <button class="tool-button" type="button" data-color="blue" aria-pressed="false" title="Blue pen"><span class="color-swatch blue" aria-hidden="true"></span><span>Blue</span></button>
+        <button class="tool-button" type="button" data-color="black" aria-pressed="false" title="Black pen"><span class="color-swatch black" aria-hidden="true"></span><span>Black</span></button>
+      </div>
+      <div class="tool-set" role="group" aria-label="Ink tool">
+        <button class="tool-button" id="penButton" type="button" aria-pressed="true" title="Draw with pen"><span aria-hidden="true">✎</span><span>Pen</span></button>
+        <button class="tool-button" id="eraserButton" type="button" aria-pressed="false" title="Erase annotations"><span class="eraser-symbol" aria-hidden="true"></span><span>Erase</span></button>
+      </div>
+      <button class="icon-button" id="undoButton" type="button" aria-label="Undo last stroke" title="Undo last stroke" disabled>&#8630;</button>
+      <button class="icon-button" id="clearButton" type="button" aria-label="Clear annotations on this image" title="Clear annotations" disabled>&#10005;</button>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const sessionId = new URLSearchParams(location.search).get('session');
+      const channel = sessionId ? new BroadcastChannel(`annotation-probe-${sessionId}`) : null;
+      const stage = document.querySelector('#stage');
+      const artwork = document.querySelector('#artwork');
+      const canvas = document.querySelector('#annotations');
+      const context = canvas.getContext('2d');
+      const items = [];
+      let activeIndex = -1;
+      let activeTool = 'pen';
+      let activeColor = 'red';
+      let activeSize = 'thin';
+      let toolsEnabled = true;
+      let activeStroke = null;
+
+      function currentItem() { return activeIndex >= 0 ? items[activeIndex] : null; }
+      function send(type, details = {}) {
+        if (channel) channel.postMessage({ type, ...details });
+      }
+
+      async function replaceSequence(images) {
+        for (const item of items) URL.revokeObjectURL(item.url);
+        items.length = 0;
+        for (const imageData of images) {
+          const url = URL.createObjectURL(imageData.blob);
+          const image = new Image();
+          image.src = url;
+          try {
+            await image.decode();
+            const strokes = imageData.strokes || [];
+            items.push({ name: imageData.name, blob: imageData.blob, url, image, strokes, undoActions: imageData.undoActions || strokes.map(() => ({ type: 'stroke' })) });
+          } catch (error) {
+            URL.revokeObjectURL(url);
+          }
+        }
+        activeIndex = Math.min(activeIndex, items.length - 1);
+        if (activeIndex < 0 && items.length) activeIndex = 0;
+        renderCurrent();
+      }
+
+      function renderStrokes() {
+        const item = currentItem();
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        if (!item) return;
+        for (const stroke of item.strokes) {
+          const first = stroke.points[0];
+          if (!first) continue;
+          context.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+          context.strokeStyle = stroke.color;
+          context.lineWidth = stroke.widthPx;
+          context.lineCap = 'round';
+          context.lineJoin = 'round';
+          context.beginPath();
+          context.moveTo(first.x, first.y);
+          context.lineTo(first.x + 0.01, first.y + 0.01);
+          context.stroke();
+          for (let index = 1; index < stroke.points.length; index++) {
+            context.beginPath();
+            context.moveTo(stroke.points[index - 1].x, stroke.points[index - 1].y);
+            context.lineTo(stroke.points[index].x, stroke.points[index].y);
+            context.stroke();
+          }
+        }
+        context.globalCompositeOperation = 'source-over';
+      }
+
+      function renderCurrent() {
+        const item = currentItem();
+        document.querySelector('#emptyState').hidden = Boolean(item);
+        artwork.style.display = item ? 'block' : 'none';
+        canvas.style.display = item ? 'block' : 'none';
+        document.querySelector('#position').textContent = `${activeIndex >= 0 ? activeIndex + 1 : 0} / ${items.length}`;
+        document.querySelector('#previousButton').disabled = activeIndex <= 0;
+        document.querySelector('#nextButton').disabled = activeIndex < 0 || activeIndex >= items.length - 1;
+        document.querySelector('#topNextButton').disabled = activeIndex < 0 || activeIndex >= items.length - 1;
+        document.querySelector('#undoButton').disabled = !item || item.undoActions.length === 0;
+        document.querySelector('#clearButton').disabled = !item;
+        document.querySelector('#tools').hidden = !toolsEnabled;
+        canvas.style.pointerEvents = toolsEnabled ? 'auto' : 'none';
+        document.querySelectorAll('[data-color]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.color === activeColor)));
+        document.querySelectorAll('[data-size]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.size === activeSize)));
+        document.querySelector('#penButton').setAttribute('aria-pressed', String(activeTool === 'pen'));
+        document.querySelector('#eraserButton').setAttribute('aria-pressed', String(activeTool === 'eraser'));
+        canvas.classList.toggle('is-eraser', activeTool === 'eraser');
+        if (item) {
+          artwork.src = item.url;
+          canvas.width = item.image.naturalWidth;
+          canvas.height = item.image.naturalHeight;
+          renderStrokes();
+          layoutImage();
+        }
+      }
+
+      function layoutImage() {
+        const item = currentItem();
+        if (!item) return;
+        const bounds = stage.getBoundingClientRect();
+        const scale = Math.min(bounds.width / item.image.naturalWidth, bounds.height / item.image.naturalHeight);
+        const width = Math.max(1, item.image.naturalWidth * scale);
+        const height = Math.max(1, item.image.naturalHeight * scale);
+        for (const element of [artwork, canvas]) {
+          element.style.width = `${width}px`;
+          element.style.height = `${height}px`;
+          element.style.left = `${(bounds.width - width) / 2}px`;
+          element.style.top = `${(bounds.height - height) / 2}px`;
+        }
+      }
+
+      function selectImage(index) {
+        if (index < 0 || index >= items.length || index === activeIndex) return;
+        activeIndex = index;
+        renderCurrent();
+        send('navigate', { imageIndex: index });
+      }
+
+      function getPoint(event) {
+        const bounds = canvas.getBoundingClientRect();
+        return {
+          x: (event.clientX - bounds.left) / bounds.width * canvas.width,
+          y: (event.clientY - bounds.top) / bounds.height * canvas.height,
+          normalizedX: (event.clientX - bounds.left) / bounds.width,
+          normalizedY: (event.clientY - bounds.top) / bounds.height,
+          pointerType: event.pointerType || 'mouse',
+          pressure: event.pressure || 0.5,
+          timeMs: Date.now()
+        };
+      }
+
+      function drawSegment(from, to, stroke) {
+        context.globalCompositeOperation = stroke.tool === 'eraser' ? 'destination-out' : 'source-over';
+        context.strokeStyle = stroke.color;
+        context.lineWidth = stroke.widthPx;
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.beginPath();
+        context.moveTo(from.x, from.y);
+        context.lineTo(to.x, to.y);
+        context.stroke();
+      }
+
+      function pointerDown(event) {
+        if (!toolsEnabled || !currentItem() || event.button > 0) return;
+        event.preventDefault();
+        canvas.setPointerCapture(event.pointerId);
+        const point = getPoint(event);
+        const bounds = canvas.getBoundingClientRect();
+        const screenWidth = activeTool === 'eraser' ? 22 : 2.5;
+        activeStroke = {
+          tool: activeTool,
+          color: activeTool === 'eraser' ? '#000000' : activeColor === 'red' ? '#df473d' : activeColor === 'blue' ? '#2868c7' : '#111111',
+          size: activeTool === 'eraser' ? 'eraser' : 'thin',
+          widthPx: screenWidth / (bounds.width / canvas.width),
+          points: [point],
+          startedAt: point.timeMs
+        };
+        currentItem().undoActions.push({ type: 'stroke' });
+        currentItem().strokes.push(activeStroke);
+        drawSegment(point, { ...point, x: point.x + 0.01, y: point.y + 0.01 }, activeStroke);
+        document.querySelector('#undoButton').disabled = false;
+      }
+
+      function pointerMove(event) {
+        if (!activeStroke || !toolsEnabled) return;
+        event.preventDefault();
+        for (const sample of event.getCoalescedEvents?.() || [event]) {
+          const point = getPoint(sample);
+          const previous = activeStroke.points[activeStroke.points.length - 1];
+          activeStroke.points.push(point);
+          drawSegment(previous, point, activeStroke);
+        }
+      }
+
+      function pointerUp(event) {
+        if (!activeStroke) return;
+        activeStroke.endedAt = Date.now();
+        if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+        send('stroke', { imageIndex: activeIndex, stroke: activeStroke });
+        activeStroke = null;
+      }
+
+      function undo() {
+        if (!toolsEnabled) return;
+        const item = currentItem();
+        const action = item?.undoActions.pop();
+        if (!action) return;
+        item.strokes = action.type === 'clear' ? action.strokes : item.strokes.slice(0, -1);
+        renderStrokes();
+        renderCurrent();
+        send('undo', { imageIndex: activeIndex });
+      }
+
+      function clearAnnotations() {
+        if (!toolsEnabled) return;
+        const item = currentItem();
+        if (!item) return;
+        item.undoActions.push({ type: 'clear', strokes: item.strokes });
+        item.strokes = [];
+        renderStrokes();
+        renderCurrent();
+        send('clear', { imageIndex: activeIndex });
+      }
+
+      function setTool(tool) {
+        activeTool = tool;
+        document.querySelector('#penButton').setAttribute('aria-pressed', String(tool === 'pen'));
+        document.querySelector('#eraserButton').setAttribute('aria-pressed', String(tool === 'eraser'));
+        canvas.classList.toggle('is-eraser', tool === 'eraser');
+        send('tool_change', { imageIndex: activeIndex, tool });
+      }
+
+      channel?.addEventListener('message', async (event) => {
+        const message = event.data;
+        if (message.type === 'session_snapshot' || message.type === 'sequence_update') {
+          await replaceSequence(message.images || []);
+          if (message.type === 'session_snapshot') {
+            activeIndex = message.activeIndex;
+            toolsEnabled = message.toolsEnabled;
+            canvas.style.visibility = message.inkVisible ? 'visible' : 'hidden';
+            activeTool = message.activeTool || 'pen';
+            activeColor = message.activeColor || 'red';
+            activeSize = message.activeSize || 'thin';
+          }
+          renderCurrent();
+          return;
+        }
+        if (message.type === 'active_image') {
+          activeIndex = message.index;
+          renderCurrent();
+        }
+        if (message.type === 'tools_enabled') {
+          toolsEnabled = message.enabled;
+          renderCurrent();
+        }
+        if (message.type === 'annotation_visibility') canvas.style.visibility = message.visible ? 'visible' : 'hidden';
+      });
+
+      document.querySelector('#previousButton').addEventListener('click', () => selectImage(activeIndex - 1));
+      document.querySelector('#nextButton').addEventListener('click', () => selectImage(activeIndex + 1));
+      document.querySelector('#topNextButton').addEventListener('click', () => selectImage(activeIndex + 1));
+      document.querySelector('#penButton').addEventListener('click', () => setTool('pen'));
+      document.querySelector('#eraserButton').addEventListener('click', () => setTool('eraser'));
+      document.querySelectorAll('[data-color]').forEach((button) => button.addEventListener('click', () => {
+        activeColor = button.dataset.color;
+        document.querySelectorAll('[data-color]').forEach((entry) => entry.setAttribute('aria-pressed', String(entry === button)));
+        if (activeTool !== 'pen') setTool('pen');
+        send('color_change', { imageIndex: activeIndex, color: activeColor });
+      }));
+      document.querySelectorAll('[data-size]').forEach((button) => button.addEventListener('click', () => {
+        activeSize = button.dataset.size;
+        document.querySelectorAll('[data-size]').forEach((entry) => entry.setAttribute('aria-pressed', String(entry === button)));
+        if (activeTool !== 'pen') setTool('pen');
+        send('size_change', { imageIndex: activeIndex, size: activeSize });
+      }));
+      document.querySelector('#undoButton').addEventListener('click', undo);
+      document.querySelector('#clearButton').addEventListener('click', clearAnnotations);
+      document.querySelector('#fullscreenButton').addEventListener('click', async () => {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen?.();
+      });
+      canvas.addEventListener('pointerdown', pointerDown);
+      canvas.addEventListener('pointermove', pointerMove);
+      canvas.addEventListener('pointerup', pointerUp);
+      canvas.addEventListener('pointercancel', pointerUp);
+      window.addEventListener('resize', layoutImage);
+      window.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft') selectImage(activeIndex - 1);
+        if (event.key === 'ArrowRight') selectImage(activeIndex + 1);
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); }
+      });
+
+      if (channel) send('participant_ready');
+      new ResizeObserver(layoutImage).observe(stage);
+    })();
+  </script>
+</body>
+</html>

@@ -1,7 +1,8 @@
+/* Matches the component's `maxHeight: 70vh`; a definite height lets the stage below bound the graph. */
 .annotation-trial {
   display: flex;
   width: 100%;
-  height: 100%;
+  height: 70vh;
   min-height: 0;
   flex-direction: column;
   gap: 0.75rem;
@@ -41,8 +42,9 @@
   display: grid;
   width: 100%;
   min-height: 12rem;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   padding-block: var(--annotation-margin);
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   overflow: hidden;
   --annotation-margin: 24px;
@@ -60,7 +62,7 @@
   position: relative;
   display: block;
   max-width: calc(100% - 2 * var(--annotation-margin));
-  max-height: max(0px, calc(70vh - 2 * var(--annotation-margin)));
+  max-height: 100%;
   object-fit: contain;
   user-select: none;
 }

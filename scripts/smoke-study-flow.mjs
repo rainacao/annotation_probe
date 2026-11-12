@@ -33,7 +33,8 @@ console.log('graph image', await page.locator('.annotation-image-stage img').get
 console.log('cross centre', cb.x + cb.width / 2, cb.y + cb.height / 2);
 console.log('image centre', ib.x + ib.width / 2, ib.y + ib.height / 2);
 console.log('cross on screen ms (expected durationMs)', await page.evaluate(() => window.crossTimes));
-await page.getByPlaceholder('Enter your answer').fill('test');
+console.log('answer options', await page.getByRole('radio').evaluateAll((els) => els.map((e) => e.value)));
+await page.getByRole('radio').first().check();
 await page.getByRole('button', { name: 'Next', exact: true }).click();
 await page.getByText('Mental Demand').waitFor({ timeout: 10000 });
 await page.waitForTimeout(500);

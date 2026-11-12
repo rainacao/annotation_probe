@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v3.0.0/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
-    "title": "VLAT Graph Viewing Study",
+    "title": "Mini-VLAT Annotation Study",
     "version": "development",
     "authors": [
       "Annotation Probe"
@@ -10,7 +10,7 @@
       "Annotation Probe"
     ],
     "date": "2026-11-11",
-    "description": "View a fixed sequence of VLAT graph images. Each graph is preceded by a fixation-cross pupil baseline and followed by a NASA-TLX workload questionnaire."
+    "description": "The 12 Mini-VLAT items (Pandey & Ottley, 2023) with multiple-choice answers and pointer annotation. Each item is preceded by a fixation-cross pupil baseline and followed by a NASA-TLX."
   },
   "uiConfig": {
     "logoPath": "revisitAssets/revisitLogoSquare.svg",
@@ -21,22 +21,6 @@
     "autoDownloadTime": 5000,
     "stylesheetPath": "annotation-probe/study.css",
     "nextButtonLocation": "sidebar"
-  },
-  "factors": {
-    "graph": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10,
-      11,
-      12
-    ]
   },
   "baseComponents": {
     "fixation": {
@@ -59,7 +43,6 @@
       ],
       "stylesheetPath": "annotation-probe/fixation.css",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT{{graph}}.png",
         "durationMs": 5000
       }
     },
@@ -72,25 +55,24 @@
       },
       "response": [
         {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "location": "sidebar",
+          "required": true,
+          "options": []
+        },
+        {
           "id": "annotation",
           "type": "reactive",
           "prompt": "Drawing annotations",
           "location": "sidebar",
           "hidden": true,
           "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
         }
       ],
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT{{graph}}.png"
-      }
+      "instructionLocation": "sidebar",
+      "description": "Mini-VLAT item with pointer annotation; per-item question, options, and answer key come from the component."
     },
     "nasa-tlx": {
       "type": "questionnaire",
@@ -223,18 +205,579 @@
       ]
     }
   },
-  "components": {},
+  "components": {
+    "fixation-treemap": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/TreeMap.png"
+      }
+    },
+    "graph-treemap": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "treemap"
+      },
+      "instruction": "eBay is nested in the Software category.",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/TreeMap.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "True",
+            "False",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "False"
+        }
+      ]
+    },
+    "tlx-treemap": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-stackedbar100": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Stacked100.png"
+      }
+    },
+    "graph-stackedbar100": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "stackedbar100"
+      },
+      "instruction": "Which country has the lowest proportion of Gold medals?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Stacked100.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "USA",
+            "Great Britain",
+            "Japan",
+            "Australia",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "Great Britain"
+        }
+      ]
+    },
+    "tlx-stackedbar100": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-histogram": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Histogram.png"
+      }
+    },
+    "graph-histogram": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "histogram"
+      },
+      "instruction": "What distance have customers traveled in the taxi the most?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Histogram.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "50-70km",
+            "30-40km",
+            "20-30km",
+            "50-60km",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "30-40km"
+        }
+      ]
+    },
+    "tlx-histogram": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-choropleth": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Choropleth.png"
+      }
+    },
+    "graph-choropleth": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "choropleth"
+      },
+      "instruction": "In 2020, the unemployment rate for Washington (WA) was higher than that of Wisconsin (WI)?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Choropleth.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "True",
+            "False",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "True"
+        }
+      ]
+    },
+    "tlx-choropleth": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-piechart": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/PieChart.png"
+      }
+    },
+    "graph-piechart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "piechart"
+      },
+      "instruction": "What is the approximate global smartphone market share of Samsung?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/PieChart.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "17.6%",
+            "25.3%",
+            "10.9%",
+            "35.2%",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "17.6%"
+        }
+      ]
+    },
+    "tlx-piechart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-bubblechart": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BubbleChart.png"
+      }
+    },
+    "graph-bubblechart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "bubblechart"
+      },
+      "instruction": "Which city's metro system has the largest number of stations?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BubbleChart.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "Beijing",
+            "Shanghai",
+            "London",
+            "Seoul",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "Shanghai"
+        }
+      ]
+    },
+    "tlx-bubblechart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-stackedbar": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedBar.png"
+      }
+    },
+    "graph-stackedbar": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "stackedbar"
+      },
+      "instruction": "What is the cost of peanuts in Seoul?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedBar.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "$5.2",
+            "$6.1",
+            "$7.5",
+            "$4.5",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "$6.1"
+        }
+      ]
+    },
+    "tlx-stackedbar": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-linechart": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/LineChart.png"
+      }
+    },
+    "graph-linechart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "linechart"
+      },
+      "instruction": "What was the price of a barrel of oil in February 2020?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/LineChart.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "$50.54",
+            "$47.02",
+            "$42.34",
+            "$43.48",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "$50.54"
+        }
+      ]
+    },
+    "tlx-linechart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-barchart": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BarChart.png"
+      }
+    },
+    "graph-barchart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "barchart"
+      },
+      "instruction": "What is the average internet speed in Japan?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BarChart.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "42.30 Mbps",
+            "40.51 Mbps",
+            "35.25 Mbps",
+            "16.16 Mbps",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "40.51 Mbps"
+        }
+      ]
+    },
+    "tlx-barchart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-areachart": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/AreaChart.png"
+      }
+    },
+    "graph-areachart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "areachart"
+      },
+      "instruction": "What was the average price of a pound of coffee in October 2019?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/AreaChart.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "0.71",
+            "0.90",
+            "0.80",
+            "0.63",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "0.71"
+        }
+      ]
+    },
+    "tlx-areachart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-stackedarea": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedArea.png"
+      }
+    },
+    "graph-stackedarea": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "stackedarea"
+      },
+      "instruction": "What was the ratio of girls named \"Isla\" to girls named \"Amelia\" in 2012 in the UK?",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedArea.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "1 to 1",
+            "1 to 2",
+            "1 to 3",
+            "1 to 4",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "1 to 2"
+        }
+      ]
+    },
+    "tlx-stackedarea": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-scatterplot": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Scatterplot.png"
+      }
+    },
+    "graph-scatterplot": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "scatterplot"
+      },
+      "instruction": "There is a negative relationship between the height and the weight of the 85 males.",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Scatterplot.png"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Your answer",
+          "options": [
+            "True",
+            "False",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
+        {
+          "id": "answer",
+          "answer": "False"
+        }
+      ]
+    },
+    "tlx-scatterplot": {
+      "baseComponent": "nasa-tlx"
+    }
+  },
   "sequence": {
     "order": "fixed",
     "components": [
       {
-        "type": "factor",
-        "id": "trials",
-        "factor": "graph",
+        "id": "treemap",
+        "order": "fixed",
         "components": [
-          "fixation",
-          "graph",
-          "nasa-tlx"
+          "fixation-treemap",
+          "graph-treemap",
+          "tlx-treemap"
+        ]
+      },
+      {
+        "id": "stackedbar100",
+        "order": "fixed",
+        "components": [
+          "fixation-stackedbar100",
+          "graph-stackedbar100",
+          "tlx-stackedbar100"
+        ]
+      },
+      {
+        "id": "histogram",
+        "order": "fixed",
+        "components": [
+          "fixation-histogram",
+          "graph-histogram",
+          "tlx-histogram"
+        ]
+      },
+      {
+        "id": "choropleth",
+        "order": "fixed",
+        "components": [
+          "fixation-choropleth",
+          "graph-choropleth",
+          "tlx-choropleth"
+        ]
+      },
+      {
+        "id": "piechart",
+        "order": "fixed",
+        "components": [
+          "fixation-piechart",
+          "graph-piechart",
+          "tlx-piechart"
+        ]
+      },
+      {
+        "id": "bubblechart",
+        "order": "fixed",
+        "components": [
+          "fixation-bubblechart",
+          "graph-bubblechart",
+          "tlx-bubblechart"
+        ]
+      },
+      {
+        "id": "stackedbar",
+        "order": "fixed",
+        "components": [
+          "fixation-stackedbar",
+          "graph-stackedbar",
+          "tlx-stackedbar"
+        ]
+      },
+      {
+        "id": "linechart",
+        "order": "fixed",
+        "components": [
+          "fixation-linechart",
+          "graph-linechart",
+          "tlx-linechart"
+        ]
+      },
+      {
+        "id": "barchart",
+        "order": "fixed",
+        "components": [
+          "fixation-barchart",
+          "graph-barchart",
+          "tlx-barchart"
+        ]
+      },
+      {
+        "id": "areachart",
+        "order": "fixed",
+        "components": [
+          "fixation-areachart",
+          "graph-areachart",
+          "tlx-areachart"
+        ]
+      },
+      {
+        "id": "stackedarea",
+        "order": "fixed",
+        "components": [
+          "fixation-stackedarea",
+          "graph-stackedarea",
+          "tlx-stackedarea"
+        ]
+      },
+      {
+        "id": "scatterplot",
+        "order": "fixed",
+        "components": [
+          "fixation-scatterplot",
+          "graph-scatterplot",
+          "tlx-scatterplot"
         ]
       }
     ]

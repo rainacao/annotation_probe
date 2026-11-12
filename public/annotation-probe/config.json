@@ -10,7 +10,7 @@
       "Annotation Probe"
     ],
     "date": "2026-11-11",
-    "description": "View a fixed sequence of VLAT graph images and record one response for each graph."
+    "description": "View a fixed sequence of VLAT graph images. Each graph is preceded by a fixation-cross pupil baseline and followed by a NASA-TLX workload questionnaire."
   },
   "uiConfig": {
     "logoPath": "revisitAssets/revisitLogoSquare.svg",
@@ -18,373 +18,493 @@
     "withProgressBar": true,
     "withSidebar": true,
     "autoDownloadStudy": true,
-    "autoDownloadTime": 5000
+    "autoDownloadTime": 5000,
+    "stylesheetPath": "annotation-probe/study.css",
+    "nextButtonLocation": "sidebar"
+  },
+  "baseComponents": {
+    "fixation": {
+      "type": "react-component",
+      "path": "annotation-probe/FixationBaseline.tsx",
+      "description": "Fixation-cross pupil baseline on neutral grey; auto-advances after durationMs.",
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "baseline",
+          "type": "reactive",
+          "prompt": "Fixation baseline",
+          "location": "sidebar",
+          "hidden": true,
+          "required": true
+        }
+      ],
+      "stylesheetPath": "annotation-probe/fixation.css"
+    },
+    "graph": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "nasa-tlx": {
+      "type": "questionnaire",
+      "description": "NASA Task Load Index (raw TLX, 0-100 in steps of 5).",
+      "instruction": "Rate the graph task you just completed on each scale.",
+      "instructionLocation": "aboveStimulus",
+      "withSidebar": false,
+      "nextButtonLocation": "belowStimulus",
+      "response": [
+        {
+          "id": "mental-demand",
+          "type": "slider",
+          "prompt": "Mental Demand: How mentally demanding was the task?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "physical-demand",
+          "type": "slider",
+          "prompt": "Physical Demand: How physically demanding was the task?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "temporal-demand",
+          "type": "slider",
+          "prompt": "Temporal Demand: How hurried or rushed was the pace of the task?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "performance",
+          "type": "slider",
+          "prompt": "Performance: How successful were you in accomplishing what you were asked to do?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Perfect",
+              "value": 0
+            },
+            {
+              "label": "Failure",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "effort",
+          "type": "slider",
+          "prompt": "Effort: How hard did you have to work to accomplish your level of performance?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "id": "frustration",
+          "type": "slider",
+          "prompt": "Frustration: How insecure, discouraged, irritated, stressed, and annoyed were you?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Very Low",
+              "value": 0
+            },
+            {
+              "label": "Very High",
+              "value": 100
+            }
+          ]
+        }
+      ]
+    }
   },
   "components": {
+    "fixation-01": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT1.png",
+        "durationMs": 3000
+      }
+    },
     "graph-01": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT1.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-01": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-02": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT2.png",
+        "durationMs": 3000
+      }
     },
     "graph-02": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT2.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-02": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-03": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT3.png",
+        "durationMs": 3000
+      }
     },
     "graph-03": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT3.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-03": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-04": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT4.png",
+        "durationMs": 3000
+      }
     },
     "graph-04": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT4.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-04": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-05": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT5.png",
+        "durationMs": 3000
+      }
     },
     "graph-05": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT5.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-05": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-06": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT6.png",
+        "durationMs": 3000
+      }
     },
     "graph-06": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT6.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-06": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-07": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT7.png",
+        "durationMs": 3000
+      }
     },
     "graph-07": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT7.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-07": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-08": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT8.png",
+        "durationMs": 3000
+      }
     },
     "graph-08": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT8.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-08": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-09": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT9.png",
+        "durationMs": 3000
+      }
     },
     "graph-09": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT9.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-09": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-10": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT10.png",
+        "durationMs": 3000
+      }
     },
     "graph-10": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT10.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-10": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-11": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT11.png",
+        "durationMs": 3000
+      }
     },
     "graph-11": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT11.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-11": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-12": {
+      "baseComponent": "fixation",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT12.png",
+        "durationMs": 3000
+      }
     },
     "graph-12": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "baseComponent": "graph",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT12.png"
-      },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
-      },
-      "response": [
-        {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
-        {
-          "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
-        }
-      ]
+      }
+    },
+    "tlx-12": {
+      "baseComponent": "nasa-tlx"
     }
   },
   "sequence": {
     "order": "fixed",
     "components": [
-      "graph-01",
-      "graph-02",
-      "graph-03",
-      "graph-04",
-      "graph-05",
-      "graph-06",
-      "graph-07",
-      "graph-08",
-      "graph-09",
-      "graph-10",
-      "graph-11",
-      "graph-12"
+      {
+        "id": "trial-01",
+        "order": "fixed",
+        "components": [
+          "fixation-01",
+          "graph-01",
+          "tlx-01"
+        ]
+      },
+      {
+        "id": "trial-02",
+        "order": "fixed",
+        "components": [
+          "fixation-02",
+          "graph-02",
+          "tlx-02"
+        ]
+      },
+      {
+        "id": "trial-03",
+        "order": "fixed",
+        "components": [
+          "fixation-03",
+          "graph-03",
+          "tlx-03"
+        ]
+      },
+      {
+        "id": "trial-04",
+        "order": "fixed",
+        "components": [
+          "fixation-04",
+          "graph-04",
+          "tlx-04"
+        ]
+      },
+      {
+        "id": "trial-05",
+        "order": "fixed",
+        "components": [
+          "fixation-05",
+          "graph-05",
+          "tlx-05"
+        ]
+      },
+      {
+        "id": "trial-06",
+        "order": "fixed",
+        "components": [
+          "fixation-06",
+          "graph-06",
+          "tlx-06"
+        ]
+      },
+      {
+        "id": "trial-07",
+        "order": "fixed",
+        "components": [
+          "fixation-07",
+          "graph-07",
+          "tlx-07"
+        ]
+      },
+      {
+        "id": "trial-08",
+        "order": "fixed",
+        "components": [
+          "fixation-08",
+          "graph-08",
+          "tlx-08"
+        ]
+      },
+      {
+        "id": "trial-09",
+        "order": "fixed",
+        "components": [
+          "fixation-09",
+          "graph-09",
+          "tlx-09"
+        ]
+      },
+      {
+        "id": "trial-10",
+        "order": "fixed",
+        "components": [
+          "fixation-10",
+          "graph-10",
+          "tlx-10"
+        ]
+      },
+      {
+        "id": "trial-11",
+        "order": "fixed",
+        "components": [
+          "fixation-11",
+          "graph-11",
+          "tlx-11"
+        ]
+      },
+      {
+        "id": "trial-12",
+        "order": "fixed",
+        "components": [
+          "fixation-12",
+          "graph-12",
+          "tlx-12"
+        ]
+      }
     ]
   }
 }

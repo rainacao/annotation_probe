@@ -1,0 +1,4 @@
+/* Loaded only while a fixation baseline is on screen: the study advances on its own, so the Next button is hidden (layout kept) to avoid an early click and a bright distractor. */
+.sidebar button[aria-label="Next"] {
+  visibility: hidden;
+}

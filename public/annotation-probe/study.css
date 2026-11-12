@@ -1,0 +1,27 @@
+/* Neutral grey (sRGB 128, 128, 128): the midpoint between white and black, used for the whole study page so pupil baselines are not driven by a white surround. */
+:root {
+  --study-neutral-grey: #808080;
+}
+
+body,
+.mantine-AppShell-root,
+.mantine-AppShell-main,
+.mantine-AppShell-header,
+.mantine-AppShell-footer {
+  background-color: var(--study-neutral-grey);
+}
+
+/* The sidebar sets its background inline, so it needs !important. */
+.sidebar {
+  background: var(--study-neutral-grey) !important;
+}
+
+.mantine-AppShell-header {
+  border-color: var(--study-neutral-grey);
+}
+
+/* Mantine's dimmed text is too faint on the grey background. */
+.mantine-AppShell-main,
+.sidebar {
+  --mantine-color-dimmed: #262626;
+}

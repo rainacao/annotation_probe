@@ -28,6 +28,9 @@ export default function FixationBaseline({
   const stageRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const advancedRef = useRef(false);
+  // setAnswer's identity changes across renders; reading it from a ref keeps the baseline timer from restarting.
+  const setAnswerRef = useRef(setAnswer);
+  setAnswerRef.current = setAnswer;
   const [cross, setCross] = useState<CrossPosition | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [complete, setComplete] = useState(false);
@@ -61,7 +64,7 @@ export default function FixationBaseline({
   useEffect(() => {
     if (startedAt === null) return undefined;
     const timeout = window.setTimeout(() => {
-      setAnswer({
+      setAnswerRef.current({
         status: true,
         answers: {
           [RESPONSE_ID]: {
@@ -74,7 +77,7 @@ export default function FixationBaseline({
       setComplete(true);
     }, parameters.durationMs);
     return () => window.clearTimeout(timeout);
-  }, [startedAt, parameters.durationMs, setAnswer]);
+  }, [startedAt, parameters.durationMs]);
 
   useEffect(() => {
     if (!complete || isNextDisabled || advancedRef.current) return;

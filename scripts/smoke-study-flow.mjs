@@ -8,22 +8,30 @@ const browser = await chromium.launch({ channel: 'chrome' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
+// Time the cross in the page itself (Playwright's polling adds lag): first frame shown -> removed.
+await page.addInitScript(() => {
+  window.crossTimes = [];
+  let shownAt = null;
+  new MutationObserver(() => {
+    const present = !!document.querySelector('.fixation-cross');
+    if (present && shownAt === null) shownAt = performance.now();
+    if (!present && shownAt !== null) { window.crossTimes.push(Math.round(performance.now() - shownAt)); shownAt = null; }
+  }).observe(document, { childList: true, subtree: true });
+});
 await page.goto('http://localhost:8080/vlat-graphs');
 const cross = page.locator('.fixation-cross');
 await cross.waitFor({ timeout: 20000 });
-const t0 = Date.now();
 const cb = await cross.boundingBox();
 const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.mantine-AppShell-main')).backgroundColor);
 await page.screenshot({ path: `${out}/1-fixation.png` });
 await page.locator('.annotation-layer').waitFor({ timeout: 20000 });
-const elapsed = Date.now() - t0;
 await page.waitForTimeout(500);
 const ib = await page.locator('.annotation-image-stage img').boundingBox();
 await page.screenshot({ path: `${out}/2-graph.png` });
 console.log('main bg', bg);
 console.log('cross centre', cb.x + cb.width / 2, cb.y + cb.height / 2);
 console.log('image centre', ib.x + ib.width / 2, ib.y + ib.height / 2);
-console.log('fixation -> graph ms (measured from first cross detection)', elapsed);
+console.log('cross on screen ms (expected durationMs)', await page.evaluate(() => window.crossTimes));
 await page.getByPlaceholder('Enter your answer').fill('test');
 await page.getByRole('button', { name: 'Next', exact: true }).click();
 await page.getByText('Mental Demand').waitFor({ timeout: 10000 });

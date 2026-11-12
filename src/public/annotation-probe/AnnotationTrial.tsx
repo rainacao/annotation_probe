@@ -139,6 +139,7 @@ export default function AnnotationTrial({
   const readOnly = isAnalysis || provenanceState !== undefined;
   const stageRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeStrokeRef = useRef<AnnotationStroke | null>(null);
   const currentStateRef = useRef<AnnotationState | null>(null);
@@ -205,6 +206,15 @@ export default function AnnotationTrial({
     canvas.style.width = `${canvasWidth}px`;
     canvas.style.height = `${canvasHeight}px`;
     canvas.style.pointerEvents = canEdit ? 'auto' : 'none';
+
+    const backdrop = backdropRef.current;
+    if (backdrop) {
+      backdrop.style.left = canvas.style.left;
+      backdrop.style.top = canvas.style.top;
+      backdrop.style.width = canvas.style.width;
+      backdrop.style.height = canvas.style.height;
+      backdrop.style.visibility = 'visible';
+    }
 
     const pixelRatio = window.devicePixelRatio || 1;
     const pixelWidth = Math.round(canvasWidth * pixelRatio);
@@ -284,6 +294,7 @@ export default function AnnotationTrial({
         </div>
       </div>
       <div ref={stageRef} className="annotation-image-stage">
+        <div ref={backdropRef} className="annotation-backdrop" aria-hidden="true" />
         <img ref={imageRef} src={parameters.imageUrl} alt={parameters.altText || 'VLAT graph stimulus'} draggable={false} onLoad={redraw} />
         <canvas
           ref={canvasRef}

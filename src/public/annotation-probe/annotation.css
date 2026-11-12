@@ -42,12 +42,22 @@
   width: 100%;
   min-height: 12rem;
   flex: 1 1 auto;
+  padding-block: var(--annotation-margin);
   place-items: center;
   overflow: hidden;
   --annotation-margin: 24px;
 }
 
+/* White surface behind the drawable area (graph plus margin); positioned by redraw() to match the canvas. */
+.annotation-backdrop {
+  position: absolute;
+  background: #ffffff;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .annotation-image-stage img {
+  position: relative;
   display: block;
   max-width: calc(100% - 2 * var(--annotation-margin));
   max-height: max(0px, calc(70vh - 2 * var(--annotation-margin)));

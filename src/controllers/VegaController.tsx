@@ -1,0 +1,278 @@
+import {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
+import { Vega, VisualizationSpec, View } from 'react-vega';
+import { Registry } from '@trrack/core';
+import { VegaProps } from 'react-vega/lib/Vega';
+import { ValueOf, VegaComponent } from '../parser/types';
+import { getJsonAssetByPath } from '../utils/getStaticAsset';
+import { ResourceNotFound } from '../ResourceNotFound';
+import { useStudyConfig } from '../store/hooks/useStudyConfig';
+import { useStoreActions, useStoreDispatch } from '../store/store';
+import { StimulusParams, StoredAnswer, TrrackedProvenance } from '../store/types';
+import { useCurrentIdentifier } from '../routes/utils';
+import { useEvent } from '../store/hooks/useEvent';
+import { useIsAnalysis } from '../store/hooks/useIsAnalysis';
+import { useManagedTrrack } from '../store/hooks/useRevisitTrrack';
+import { useTrialProvenance } from '../store/hooks/useTrialProvenance';
+import { useStoredAnswer } from '../store/hooks/useStoredAnswer';
+import { responseValueKeys } from '../utils/responseVisibility';
+import { compileTemplate } from '../utils/handlebars';
+import { useTemplateAnswerContext } from '../store/hooks/useTemplateAnswerContext';
+import { getAssetStatus, useAssetStatus, useAssetLoadStatus } from '../store/hooks/useAssetStatus';
+import { getInitialStimulusValidation } from '../components/response/stimulusErrors';
+import { useAsyncResource } from '../store/hooks/useAsyncResource';
+
+type Listeners = { [key: string]: (key: string, value: { responseId: string, response: string | number }) => void };
+
+export interface VegaProvState {
+  event?: {
+    key: string;
+    value: unknown;
+  };
+  signals?: Record<string, unknown>;
+}
+
+const InternalVega = Vega as unknown as React.FC<VegaProps>;
+
+export function VegaController({ currentConfig, provState }: { currentConfig: VegaComponent; provState?: VegaProvState }) {
+  const studyConfig = useStudyConfig();
+  const storeDispatch = useStoreDispatch();
+  const savedAnswer = useStoredAnswer();
+  const [legacyAnswers] = useState<StoredAnswer['answer']>(() => {
+    const hostResponseKeys = new Set((currentConfig.response ?? [])
+      .filter((response) => response.type !== 'reactive').flatMap(responseValueKeys));
+    return Object.fromEntries(Object.entries(savedAnswer?.answer ?? {}).filter(([key]) => !hostResponseKeys.has(key)));
+  });
+  const [stimulusStatus, setStimulusStatus] = useState(false);
+  const [stimulusAnswer, setStimulusAnswer] = useState<StoredAnswer['answer']>({});
+
+  const identifier = useCurrentIdentifier();
+  const retainedProvenance = useTrialProvenance('stimulus');
+  const restoringView = useRef(true);
+
+  const templateData = useTemplateAnswerContext();
+  const templatedPath = useMemo(
+    () => (templateData && 'path' in currentConfig ? compileTemplate(currentConfig.path, currentConfig.parameters ?? {}, { noEscape: true, data: templateData }) : undefined),
+    [currentConfig, templateData],
+  );
+  const requestedConfigKey = 'path' in currentConfig ? templatedPath : '__inline__';
+  const requestKey = requestedConfigKey === undefined ? undefined : `${identifier}:${requestedConfigKey}`;
+  const loadVega = useCallback(async () => {
+    if ('path' in currentConfig) {
+      return templatedPath === undefined ? undefined : getJsonAssetByPath(templatedPath);
+    }
+    return currentConfig.config as VisualizationSpec;
+  }, [currentConfig, templatedPath]);
+  const { status: resourceStatus, value: vegaConfig } = useAsyncResource<VisualizationSpec>(requestKey, loadVega);
+  const renderedConfig = useMemo(() => (vegaConfig ? structuredClone(vegaConfig) : undefined), [vegaConfig]);
+
+  const {
+    updateProvenance, updateResponseBlockValidation, setReactiveAnswers,
+  } = useStoreActions();
+  const isAnalysis = useIsAnalysis();
+  const viewKey = useMemo(() => ({ requestKey, vegaConfig }), [requestKey, vegaConfig]);
+  const { status: viewStatus, onReady: handleViewReady, onError: handleViewError } = useAssetLoadStatus(viewKey);
+  const assetStatus = resourceStatus === 'success' && !vegaConfig ? 'error' : getAssetStatus(resourceStatus, viewStatus);
+  useAssetStatus(assetStatus);
+
+  const [view, setView] = useState<View>();
+  const initialSignals = useRef<Record<string, unknown>>({});
+
+  const { actions, registry } = useMemo(() => {
+    const reg = Registry.create();
+
+    const signalAction = reg.register('signal', ((state: VegaProvState, signalEvt: { key: string, value: unknown }) => {
+      state.event = signalEvt;
+      state.signals = {
+        ...state.signals,
+        [signalEvt.key]: structuredClone(signalEvt.value),
+      };
+      return state;
+    }) as never) as unknown as (payload: { key: string, value: unknown }) => unknown;
+
+    return {
+      actions: {
+        signalAction,
+      },
+      registry: reg,
+    };
+  }, []);
+  const reportProvenance = useCallback((provenanceGraph: TrrackedProvenance) => {
+    if (isAnalysis) return;
+    storeDispatch(updateProvenance({
+      location: 'stimulus',
+      identifier,
+      provenanceGraph,
+    }));
+  }, [identifier, isAnalysis, storeDispatch, updateProvenance]);
+  const trrack = useManagedTrrack({
+    registry,
+    initialState: {
+      signals: {},
+    },
+  }, reportProvenance, identifier, isAnalysis ? undefined : retainedProvenance);
+
+  const setAnswer = useCallback(({
+    status,
+    provenanceGraph,
+    answers,
+    reason,
+    message,
+  }: Parameters<StimulusParams<unknown>['setAnswer']>[0]) => {
+    if (isAnalysis) return;
+    storeDispatch(
+      updateResponseBlockValidation({
+        location: 'stimulus',
+        identifier,
+        status,
+        values: answers,
+        provenanceGraph,
+        reason,
+        message,
+      }),
+    );
+
+    if (Object.keys(answers).length > 0) {
+      storeDispatch(setReactiveAnswers(answers));
+    }
+  }, [isAnalysis, storeDispatch, updateResponseBlockValidation, identifier, setReactiveAnswers]);
+
+  const handleSignalEvt = useEvent((key: string, value: unknown) => {
+    if (isAnalysis || restoringView.current) return;
+
+    trrack.apply(key, actions.signalAction({
+      key,
+      value,
+    }) as never);
+
+    // Save provenance state after every event
+    setAnswer({
+      status: stimulusStatus,
+      answers: stimulusAnswer,
+    });
+  });
+
+  const handleRevisitAnswer = useEvent((key: string, value: Parameters<ValueOf<Listeners>>[1]) => {
+    if (isAnalysis) return;
+
+    if (restoringView.current) return;
+    const { responseId, response } = value;
+    trrack.apply(key, actions.signalAction({
+      key,
+      value: structuredClone(value),
+    }) as never);
+
+    setStimulusStatus(true);
+    setStimulusAnswer({ [responseId]: response });
+
+    setAnswer({
+      status: true,
+      answers: { [responseId]: response },
+    });
+  });
+
+  const signalListeners = useMemo(() => {
+    const signals = vegaConfig?.config?.signals;
+    if (!signals) return {};
+
+    return signals.reduce((listeners: Listeners, signal: { name: string }) => {
+      if (signal.name === 'revisitAnswer') {
+        listeners[signal.name] = handleRevisitAnswer;
+      } else {
+        listeners[signal.name] = handleSignalEvt;
+      }
+      return listeners;
+    }, {} as Listeners);
+  }, [handleRevisitAnswer, handleSignalEvt, vegaConfig]);
+
+  const configuredSignalNames = useMemo(() => new Set(Object.keys(signalListeners)), [signalListeners]);
+
+  useEffect(() => {
+    if (!view || !provState) {
+      return;
+    }
+
+    Object.entries(initialSignals.current).forEach(([key, value]) => {
+      view.signal(key, structuredClone(value));
+    });
+
+    const replaySignals = provState.signals
+      ?? (provState.event?.key ? { [provState.event.key]: provState.event.value } : {});
+    Object.entries(replaySignals).forEach(([key, value]) => {
+      if (configuredSignalNames.has(key)) {
+        view.signal(key, structuredClone(value));
+      }
+    });
+    view.run();
+  }, [configuredSignalNames, view, provState]);
+
+  const handleNewView = useCallback((newView: View) => {
+    initialSignals.current = Object.fromEntries(
+      [...configuredSignalNames].map((signalName) => [
+        signalName,
+        structuredClone(newView.signal(signalName)),
+      ]),
+    );
+    restoringView.current = true;
+    if (!isAnalysis) {
+      const restored = retainedProvenance ? trrack.getState() as VegaProvState : undefined;
+      Object.entries(restored?.signals ?? {}).forEach(([key, value]) => {
+        if (configuredSignalNames.has(key)) newView.signal(key, structuredClone(value));
+      });
+      if (restored) newView.run();
+      let values = legacyAnswers;
+      if (Object.hasOwn(restored?.signals ?? {}, 'revisitAnswer')) {
+        const restoredAnswer = restored?.signals?.revisitAnswer as { responseId?: string; response?: string | number } | undefined;
+        values = restoredAnswer?.responseId && restoredAnswer.response !== undefined
+          ? { [restoredAnswer.responseId]: restoredAnswer.response } : {};
+      }
+      if (Object.keys(values).length > 0) {
+        setStimulusStatus(true);
+        setStimulusAnswer(values);
+        setAnswer({ status: true, answers: values });
+      }
+    }
+    setView(newView);
+    restoringView.current = false;
+    handleViewReady();
+  }, [configuredSignalNames, handleViewReady, isAnalysis, legacyAnswers, retainedProvenance, setAnswer, trrack]);
+
+  // Reset answer validation while a new spec loads; asset validation is independent.
+  useEffect(() => {
+    if (isAnalysis) return;
+    if (!retainedProvenance && Object.keys(legacyAnswers).length === 0 && (resourceStatus === 'unresolved' || resourceStatus === 'loading')) {
+      const initialValidation = getInitialStimulusValidation(currentConfig);
+      storeDispatch(updateResponseBlockValidation({
+        location: 'stimulus',
+        identifier,
+        status: initialValidation.valid,
+        values: initialValidation.values,
+        reason: initialValidation.reason,
+      }));
+    }
+  }, [isAnalysis, legacyAnswers, retainedProvenance, resourceStatus, currentConfig, identifier, storeDispatch, updateResponseBlockValidation]);
+
+  if (resourceStatus === 'unresolved' || resourceStatus === 'loading') {
+    return <div>Loading...</div>;
+  }
+  if ('path' in currentConfig && assetStatus === 'error') {
+    return <ResourceNotFound email={studyConfig.uiConfig.contactEmail} path={templatedPath} />;
+  }
+  if (assetStatus === 'error' || !vegaConfig) {
+    return <div>Failed to load vega config</div>;
+  }
+
+  return (
+    <div inert={isAnalysis || viewStatus !== 'ready'} style={{ display: 'contents' }}>
+      <InternalVega
+        key={requestKey}
+        spec={renderedConfig!}
+        signalListeners={signalListeners as never}
+        onNewView={handleNewView}
+        onError={handleViewError}
+        actions={currentConfig.withActions}
+      />
+    </div>
+  );
+}

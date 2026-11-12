@@ -1,0 +1,415 @@
+import {
+  Box,
+  Code,
+  Collapse, Divider, Flex, Paper, ScrollArea, SimpleGrid, Text, Title,
+  useComputedColorScheme, useMantineTheme,
+} from '@mantine/core';
+import { useDisclosure, useResizeObserver } from '@mantine/hooks';
+import {
+  IconAdjustmentsHorizontal, IconBubbleText, IconCalendar, IconChartGridDots, IconChevronDown, IconClock, IconCodePlus, IconCopyCheck, IconDots, IconGridDots, IconHtml, IconLetterCase, IconDragDrop, IconNumber123, IconRadio, IconSelect, IconSquares,
+} from '@tabler/icons-react';
+import { useMemo } from 'react';
+import { VegaLite, VisualizationSpec } from 'react-vega';
+import {
+  IndividualComponent, ParticipantData, Response, StudyConfig,
+} from '../../../parser/types';
+import {
+  getSavedScoresForAnswer, hasResponseScorer, isResponseAnsweredForScoring, isResponseScoreCorrect, scoreResponseAnswer,
+} from '../../../utils/correctAnswer';
+import { parseDateValue } from '../../../utils/dateTimeValidation';
+import { resolveResponseVisibility } from '../../../utils/responseVisibility';
+import { studyComponentToIndividualComponent } from '../../../utils/handleComponentInheritance';
+
+export function ResponseVisualization({
+  response, participantData, trialId, trialConfig, allConfigs,
+}: {
+  response: Response | { id: 'Config and Timing', type: 'metadata' };
+  participantData: ParticipantData[];
+  trialId: string;
+  trialConfig: IndividualComponent;
+  allConfigs?: Record<string, StudyConfig>;
+}) {
+  const [opened, { toggle }] = useDisclosure(true);
+  const [ref, dms] = useResizeObserver();
+  const theme = useMantineTheme();
+  const colorScheme = useComputedColorScheme('light');
+  const chartConfig = useMemo(() => {
+    const textColor = colorScheme === 'dark' ? theme.colors.dark[0] : theme.black;
+    const borderColor = colorScheme === 'dark' ? theme.colors.dark[4] : theme.colors.gray[4];
+    const labelColors = { labelColor: textColor, titleColor: textColor };
+    return {
+      background: colorScheme === 'dark' ? theme.colors.dark[7] : theme.white,
+      axis: {
+        ...labelColors, domainColor: borderColor, tickColor: borderColor, gridColor: borderColor,
+      },
+      legend: labelColors,
+      header: labelColors,
+      title: { color: textColor },
+      view: { stroke: borderColor },
+    };
+  }, [colorScheme, theme]);
+
+  const correctAnswer = useMemo(() => {
+    if (response.type === 'metadata') {
+      return undefined;
+    }
+
+    return trialConfig.correctAnswer?.find((a) => a.id === response.id);
+  }, [response.id, response.type, trialConfig.correctAnswer]);
+
+  const questionData = useMemo(() => {
+    if (response.type === 'metadata') {
+      return [];
+    }
+
+    const data = participantData.map((participant) => {
+      const hasArchivedConfigs = allConfigs !== undefined;
+      const participantStudyConfig = participant.participantConfigHash
+        ? allConfigs?.[participant.participantConfigHash]
+        : undefined;
+      const participantTrialConfig = participant.participantConfigHash && hasArchivedConfigs
+        ? participantStudyConfig?.components[trialId]
+          ? studyComponentToIndividualComponent(participantStudyConfig.components[trialId], participantStudyConfig)
+          : undefined
+        : trialConfig;
+      const missingHistoricalConfig = hasArchivedConfigs && Boolean(participant.participantConfigHash) && !participantTrialConfig;
+      return Object.entries(participant.answers).filter(([key]) => key.slice(0, key.lastIndexOf('_')) === trialId)
+        .filter(([, value]) => value.startTime > 0).map(([, value]) => {
+          const persistedScores = getSavedScoresForAnswer(value.checkAnswer, value.answer);
+          const participantCorrectAnswers = value.correctAnswer ?? participantTrialConfig?.correctAnswer ?? trialConfig.correctAnswer;
+          const participantCorrectAnswer = participantCorrectAnswers?.find((answer) => answer.id === response.id);
+          const participantResponse = participantTrialConfig?.response?.find((item) => item.id === response.id)
+            ?? (!hasArchivedConfigs ? response : undefined);
+          if (participantResponse?.visibleIf && participantTrialConfig) {
+            const { visibleIds } = resolveResponseVisibility(
+              participantTrialConfig.response ?? [],
+              value.answer,
+              {},
+              participantCorrectAnswers,
+              persistedScores,
+              value.globalStoreEntry,
+            );
+            if (!visibleIds.has(response.id)) return null;
+          }
+          const answerData = { ...value.answer };
+          const savedScore = persistedScores?.[response.id];
+
+          if (missingHistoricalConfig || (participantTrialConfig && !participantResponse)) {
+            answerData.result = 'unknown';
+            answerData.order = 3;
+          } else if (participantTrialConfig && participantResponse) {
+            if (participantCorrectAnswer || hasResponseScorer(participantResponse) || savedScore !== undefined) {
+              const participantAnswer = value.answer[response.id];
+              const score = savedScore === undefined
+                ? scoreResponseAnswer(participantAnswer, participantCorrectAnswer, participantResponse, value.answer)
+                : savedScore;
+              const isGradable = isResponseAnsweredForScoring(participantResponse, participantAnswer, value.answer);
+              const validScore = isGradable && score !== null && Number.isFinite(score) && score >= 0 && score <= 1
+                ? score
+                : null;
+              const isCorrect = isGradable
+                ? isResponseScoreCorrect(validScore, participantCorrectAnswer?.correctnessThreshold)
+                : participantCorrectAnswer && participantResponse.required !== false ? false : null;
+              const isPartial = validScore !== null && validScore > 0;
+              answerData.result = isCorrect === null ? 'unknown' : isCorrect ? 'correct' : isPartial ? 'partial' : 'incorrect';
+              answerData.order = isCorrect === null ? 3 : isCorrect ? 0 : isPartial ? 1 : 2;
+            }
+          } else if (!hasArchivedConfigs && (participantCorrectAnswer || hasResponseScorer(response) || savedScore !== undefined)) {
+            const participantAnswer = value.answer[response.id];
+            const score = savedScore === undefined
+              ? scoreResponseAnswer(participantAnswer, participantCorrectAnswer, response, value.answer)
+              : savedScore;
+            const isGradable = isResponseAnsweredForScoring(response, participantAnswer, value.answer);
+            const validScore = isGradable && score !== null && Number.isFinite(score) && score >= 0 && score <= 1
+              ? score
+              : null;
+            const isCorrect = isGradable
+              ? isResponseScoreCorrect(validScore, participantCorrectAnswer?.correctnessThreshold)
+              : participantCorrectAnswer && response.required !== false ? false : null;
+            const isPartial = validScore !== null && validScore > 0;
+            answerData.result = isCorrect === null ? 'unknown' : isCorrect ? 'correct' : isPartial ? 'partial' : 'incorrect';
+            answerData.order = isCorrect === null ? 3 : isCorrect ? 0 : isPartial ? 1 : 2;
+          }
+
+          return answerData;
+        });
+    });
+    const flattened = data.flat().filter((row): row is NonNullable<typeof row> => row !== null);
+
+    return flattened.filter((row) => row[response.id] !== undefined && row[response.id] !== null && row[response.id] !== '');
+  }, [allConfigs, participantData, response, trialId, trialConfig]);
+
+  // Completion times for the metadata timing histogram
+  const timingData = useMemo(() => (response.type === 'metadata'
+    ? participantData
+      .map((p) => Object.entries(p.answers).filter(([key]) => key.slice(0, key.lastIndexOf('_')) === trialId))
+      .map((p) => p.filter(([_, value]) => value.endTime !== -1).map(([_, value]) => (value.endTime - value.startTime) / 1000))
+      .flat()
+    : []), [participantData, response.type, trialId]);
+  const hasClassification = questionData.some((row) => Object.hasOwn(row, 'result'));
+
+  // eslint-disable-next-line consistent-return
+  const vegaLiteSpec = useMemo(() => {
+    const baseSpec = {
+      height: 'container',
+      width: 'container',
+      config: chartConfig,
+    };
+
+    if (response.type === 'shortText' || response.type === 'longText') {
+      return {};
+    }
+
+    // Timing visualization for metadata block
+    if (response.type === 'metadata') {
+      // Histogram of completion times
+      const spec = {
+        ...baseSpec,
+        data: { values: timingData },
+        mark: 'bar',
+        encoding: {
+          x: {
+            field: 'data',
+            bin: true,
+            type: 'quantitative',
+            title: 'Time (s)',
+          },
+          y: { aggregate: 'count', type: 'quantitative', title: 'Count' },
+        },
+      };
+
+      return spec;
+    }
+
+    const correctAnswerSpec = {
+      color: {
+        field: 'result',
+        type: 'nominal',
+        scale: {
+          domain: ['correct', 'partial', 'incorrect', 'unknown'],
+          range: ['#69DB7C', '#FFD43B', '#ADB5BD', '#868E96'],
+        },
+      },
+      order: { field: 'order' },
+    };
+
+    // Matrix visualization
+    if (response.type === 'matrix-radio' || response.type === 'matrix-checkbox') {
+      const data = questionData
+        .map((row) => Object.entries(row[response.id] || {}).map(([question, value]) => (response.type === 'matrix-checkbox'
+          ? (value as string).split('|').map((option) => ({ question, value: option }))
+          : [{ question, value }]).map((entry) => ({ ...entry, result: row.result, order: row.order }))).flat()).flat();
+
+      // Histogram
+      const spec = {
+        ...baseSpec,
+        data: { values: data },
+        mark: 'bar',
+        encoding: {
+          row: { field: 'question', type: 'nominal', header: { title: 'Question' } },
+          x: { field: 'value', type: 'ordinal', title: 'Answer' },
+          y: { aggregate: 'count', type: 'quantitative', title: 'Count' },
+          color: hasClassification ? correctAnswerSpec.color : undefined,
+          order: hasClassification ? correctAnswerSpec.order : undefined,
+        },
+        resolve: { scale: { x: 'independent' } },
+      };
+      return spec;
+    }
+
+    // Numerical visualization
+    if (response.type === 'numerical' || response.type === 'slider' || response.type === 'likert') {
+      let min: number | undefined;
+      let max: number | undefined;
+
+      if (response.type === 'numerical') {
+        min = typeof response.min === 'number' ? response.min : undefined;
+
+        max = typeof response.max === 'number' ? response.max : undefined;
+      }
+
+      if (response.type === 'slider') {
+        min = Math.min(...response.options.map((o) => o.value));
+        max = Math.max(...response.options.map((o) => o.value));
+      }
+
+      if (response.type === 'likert') {
+        min = 1;
+        max = response.numItems;
+      }
+
+      // Histogram
+      const spec = {
+        ...baseSpec,
+        data: { values: questionData },
+        mark: 'bar',
+        transform: [
+          {
+            bin: response.type === 'likert' ? { step: 1 } : { maxbins: 10 },
+            field: response.id,
+            as: 'bins',
+          },
+        ],
+        encoding: {
+          x: {
+            field: 'bins',
+            scale: min !== undefined && max !== undefined ? { domain: [min, max] } : undefined,
+            type: 'quantitative',
+            title: 'Answer',
+          },
+          x2: { field: 'bins_end' },
+          y: {
+            aggregate: 'count', type: 'quantitative', title: 'Count', stack: true,
+          },
+          color: hasClassification ? correctAnswerSpec.color : undefined,
+          order: hasClassification ? correctAnswerSpec.order : undefined,
+        },
+      };
+      return spec;
+    }
+
+    // Categorical visualization
+    if (response.type === 'date' || response.type === 'time' || response.type === 'radio' || response.type === 'dropdown' || response.type === 'checkbox' || response.type === 'buttons' || response.type === 'ranking-sublist' || response.type === 'ranking-categorical' || response.type === 'ranking-pairwise') {
+      const dateSort = response.type === 'date'
+        ? Array.from(new Set(questionData
+          .map((row) => row[response.id])
+          .filter((value): value is string => typeof value === 'string')))
+          .sort((first, second) => {
+            const firstDate = parseDateValue(first, response.options);
+            const secondDate = parseDateValue(second, response.options);
+            return firstDate && secondDate
+              ? firstDate.getTime() - secondDate.getTime()
+              : first.localeCompare(second);
+          })
+        : undefined;
+      const spec = {
+        ...baseSpec,
+        data: { values: questionData },
+        mark: 'bar',
+        encoding: {
+          x: {
+            field: response.id, type: 'ordinal', title: 'Answer', sort: dateSort,
+          },
+          y: { aggregate: 'count', type: 'quantitative', title: 'Count' },
+          color: hasClassification ? correctAnswerSpec.color : undefined,
+          order: hasClassification ? correctAnswerSpec.order : undefined,
+        },
+      };
+      return spec;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any
+  }, [chartConfig, hasClassification, participantData, questionData, timingData, response.id, (response as any).max, (response as any).min, (response as any).numItems, (response as any).options, response.type, trialId, correctAnswer]);
+
+  return (
+    <Paper p="lg" withBorder ref={ref}>
+      <Flex direction="row" justify="space-between" onClick={toggle}>
+        <Flex align="center">
+          {response.type === 'metadata' && <IconCodePlus size={20} />}
+          {response.type === 'numerical' && <IconNumber123 size={20} />}
+          {response.type === 'date' && <IconCalendar size={20} />}
+          {response.type === 'time' && <IconClock size={20} />}
+          {(response.type === 'shortText' || response.type === 'longText') && <IconBubbleText size={20} />}
+          {response.type === 'likert' && <IconDots size={20} />}
+          {response.type === 'dropdown' && <IconSelect size={20} />}
+          {response.type === 'slider' && <IconAdjustmentsHorizontal size={20} />}
+          {response.type === 'radio' && <IconRadio size={20} />}
+          {response.type === 'checkbox' && <IconSquares size={20} />}
+          {(response.type === 'ranking-sublist' || response.type === 'ranking-categorical' || response.type === 'ranking-pairwise') && <IconDragDrop size={20} />}
+          {response.type === 'matrix-radio' && <IconGridDots size={20} />}
+          {response.type === 'matrix-checkbox' && <IconChartGridDots size={20} />}
+          {response.type === 'buttons' && <IconCopyCheck size={20} />}
+          {response.type === 'reactive' && <IconHtml size={20} />}
+          {response.type === 'custom' && <IconCodePlus size={20} />}
+          {response.type === 'textOnly' && <IconLetterCase size={20} />}
+          <Title order={5} ml={4}>
+            {response.id}
+          </Title>
+        </Flex>
+
+        <IconChevronDown style={{ rotate: opened ? '180deg' : 'none', transition: 'rotate 200ms' }} />
+      </Flex>
+
+      <Collapse expanded={opened} mah={400}>
+        <Box
+          style={{
+            position: 'sticky', backgroundColor: 'var(--mantine-color-body)', zIndex: 2,
+          }}
+          py="md"
+        >
+          <Divider />
+        </Box>
+
+        <SimpleGrid cols={2} h={360}>
+          <ScrollArea mih={200}>
+            {(response.type !== 'metadata' && response.type !== 'shortText' && response.type !== 'longText' && response.type !== 'reactive' && response.type !== 'custom' && response.type !== 'textOnly' && response.type !== 'ranking-sublist' && response.type !== 'ranking-categorical' && response.type !== 'ranking-pairwise') && questionData.length === 0 ? (
+              <Text>No responses for this task yet.</Text>
+            ) : (response.type !== 'metadata' && response.type !== 'shortText' && response.type !== 'longText' && response.type !== 'reactive' && response.type !== 'custom' && response.type !== 'textOnly' && response.type !== 'ranking-sublist' && response.type !== 'ranking-categorical' && response.type !== 'ranking-pairwise') ? (
+              <VegaLite
+                spec={vegaLiteSpec as VisualizationSpec}
+                actions={false}
+                height={270}
+                width={(response.type === 'matrix-checkbox' || response.type === 'matrix-radio' ? 500 : (dms.width / 2) - 60 - (hasClassification ? 60 : 0))}
+                padding={0}
+                style={{ justifySelf: 'center' }}
+                renderer="svg"
+              />
+            ) : (
+              <Flex direction="column" gap="xs" style={{ overflowX: 'clip' }}>
+                {response.type === 'metadata' ? (
+                  <Code block>{`${JSON.stringify(trialConfig, null, 2)}`}</Code>
+                ) : (
+                  <>
+                    <Text fw={700}>Response Values: </Text>
+                    {(response.type === 'textOnly' || response.type === 'ranking-sublist' || response.type === 'ranking-categorical' || response.type === 'ranking-pairwise') ? (
+                      <Text>N/A</Text>
+                    ) : (
+                      questionData.map((d, idx) => (
+                        <Flex key={idx} align="center" gap="xs">
+                          <Text>{typeof d[response.id] === 'object' ? JSON.stringify(d[response.id]) : `${d[response.id] ?? ''}`}</Text>
+                        </Flex>
+                      ))
+                    )}
+                  </>
+                )}
+              </Flex>
+            )}
+          </ScrollArea>
+
+          <ScrollArea mih={200}>
+            {response.type === 'metadata' && timingData.length === 0
+              ? <Text>No responses for this task yet.</Text>
+              : response.type === 'metadata'
+                ? (
+                  <VegaLite
+                    spec={vegaLiteSpec as VisualizationSpec}
+                    actions={false}
+                    width={(dms.width / 2) - 60}
+                    height={270}
+                    padding={0}
+                    style={{ justifySelf: 'center' }}
+                  />
+                )
+                : (
+                  <>
+                    <Text fw={700}>Response Specification: </Text>
+                    <Code block>
+                      {JSON.stringify(response, null, 2)}
+                    </Code>
+                    <br />
+                    {correctAnswer && (
+                      <>
+                        <Text fw={700}>Correct Answer: </Text>
+                        <Code block>
+                          {JSON.stringify(correctAnswer, null, 2)}
+                        </Code>
+                      </>
+                    )}
+                  </>
+                )}
+
+          </ScrollArea>
+        </SimpleGrid>
+      </Collapse>
+    </Paper>
+  );
+}

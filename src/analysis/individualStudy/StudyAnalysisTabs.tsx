@@ -1,0 +1,729 @@
+import {
+  Alert, AppShell, Badge, Center, Checkbox, Container, Divider, Flex, Group, LoadingOverlay, Stack, Tabs, Text, Title, MultiSelect, Tooltip,
+} from '@mantine/core';
+import { useNavigate, useParams } from 'react-router';
+import {
+  IconChartDonut2, IconTable, IconSettings,
+  IconInfoCircle,
+  IconChartPie,
+  IconTags,
+  IconDashboard,
+  IconFileCode,
+  IconDatabase,
+} from '@tabler/icons-react';
+import {
+  useCallback, useEffect, useMemo, useState,
+} from 'react';
+import { useResizeObserver } from '@mantine/hooks';
+import { AppHeader } from '../interface/AppHeader';
+import {
+  GlobalConfig, ParticipantDataWithStatus, ParsedConfig, StudyConfig,
+} from '../../parser/types';
+import { getStudyConfig, resolveConfigKey } from '../../utils/fetchConfig';
+import { LiveMonitorView } from './LiveMonitor/LiveMonitorView';
+import { AutoTimeoutSettings } from './LiveMonitor/AutoTimeoutSettings';
+import { SummaryView } from './summary/SummaryView';
+import { TableView } from './table/TableView';
+import { StatsView } from './stats/StatsView';
+import { useStorageEngine } from '../../storage/storageEngineHooks';
+import { ManageView } from './management/ManageView';
+import { StageManagementItem } from './management/StageManagementItem';
+import { StorageManagementView } from './management/StorageManagementView';
+import { useAuth } from '../../store/hooks/useAuth';
+import { parseStudyConfig } from '../../parser/parser';
+import { useAsync } from '../../store/hooks/useAsync';
+import { StorageEngine } from '../../storage/engines/types';
+import {
+  PARTICIPANT_STATUSES,
+  PARTICIPANT_STATUS_LABELS,
+  countParticipantStatuses,
+  emptyParticipantStatusCounts,
+  getParticipantDataStatus,
+} from '../../storage/participantStatus';
+import { isCloudStorageEngine } from '../../storage/engines/utils/storageEngineHelpers';
+import { DownloadButtons } from '../../components/downloader/DownloadButtons';
+import { ErrorLoadingConfig } from '../../components/ErrorLoadingConfig';
+import { useStudyRecordings } from '../../utils/useStudyRecordings';
+import { getSequenceConditions, parseConditionParam } from '../../utils/handleConditionLogic';
+import 'mantine-react-table/styles.css';
+import { ThinkAloudAnalysis } from './thinkAloud/ThinkAloudAnalysis';
+import { FirebaseStorageEngine } from '../../storage/engines/FirebaseStorageEngine';
+import { ConfigView } from './config/ConfigView';
+import { StartupErrorScreen } from '../../components/StartupErrorScreen';
+import { ResourceNotFound } from '../../ResourceNotFound';
+
+function sortByStartTime(a: ParticipantDataWithStatus, b: ParticipantDataWithStatus) {
+  const aStartTimes = Object.values(a.answers).map((answer) => answer.startTime).filter((startTime) => startTime !== undefined).sort();
+  const bStartTimes = Object.values(b.answers).map((answer) => answer.startTime).filter((startTime) => startTime !== undefined).sort();
+  if (aStartTimes.length === 0 || bStartTimes.length === 0) {
+    if (aStartTimes.length > 0) {
+      return -1;
+    }
+    if (bStartTimes.length > 0) {
+      return 1;
+    }
+    return b.participantIndex - a.participantIndex;
+  }
+  return bStartTimes[0] - aStartTimes[0];
+}
+
+function getParticipantConditions(participant: Pick<ParticipantDataWithStatus, 'conditions' | 'searchParams'>) {
+  return parseConditionParam(participant.conditions ?? participant.searchParams?.condition);
+}
+
+async function getParticipantsData(
+  studyConfig: StudyConfig | undefined,
+  storageEngine: StorageEngine | undefined,
+  studyId: string | undefined,
+): Promise<ParticipantDataWithStatus[]> {
+  if (studyId && storageEngine) {
+    await storageEngine.initializeStudyDb(studyId);
+  }
+
+  if (!studyConfig || !storageEngine || !studyId) return [];
+
+  return await storageEngine.getAllParticipantsData(studyId);
+}
+
+async function getCurrentConfigHashForStudy(
+  storageEngine: StorageEngine | undefined,
+  studyId: string | undefined,
+): Promise<string | null> {
+  if (!storageEngine || !studyId) return null;
+  return storageEngine.getCurrentConfigHash(studyId);
+}
+
+export function StudyAnalysisTabs({ globalConfig }: { globalConfig: GlobalConfig; }) {
+  const { studyId: routeStudyId } = useParams();
+  const [studyConfig, setStudyConfig] = useState<ParsedConfig<StudyConfig> | undefined>(undefined);
+  const [startupError, setStartupError] = useState<{ error: unknown } | null>(null);
+
+  const [includedParticipants, setIncludedParticipants] = useState<string[]>([...PARTICIPANT_STATUSES]);
+
+  const [selectedStages, setSelectedStages] = useState<string[]>(['ALL']);
+  const [availableStages, setAvailableStages] = useState<{ value: string; label: string }[]>([{ value: 'ALL', label: 'ALL' }]);
+  const [stageColors, setStageColors] = useState<Record<string, string>>({});
+  const [selectedParticipants, setSelectedParticipants] = useState<ParticipantDataWithStatus[]>([]);
+  const [selectedConfigs, setSelectedConfigs] = useState<string[]>(['ALL']);
+  const [availableConfigs, setAvailableConfigs] = useState<{ value: string; label: string }[]>([{ value: 'ALL', label: 'ALL' }]);
+  const [allConfigs, setAllConfigs] = useState<Record<string, StudyConfig>>({});
+  const [selectedConditions, setSelectedConditions] = useState<string[]>(['ALL']);
+  const [availableConditions, setAvailableConditions] = useState<{ value: string; label: string }[]>([]);
+
+  const { hasAudioRecording, hasScreenRecording, hasWebcamRecording } = useStudyRecordings(studyConfig);
+
+  const { storageEngine, configuredStorageEngine } = useStorageEngine();
+  const navigate = useNavigate();
+  const { analysisTab } = useParams();
+  const isStorageTab = analysisTab === 'storage';
+  const { user } = useAuth();
+  const [storageAdmin, setStorageAdmin] = useState<boolean | null>(null);
+  const [storageAdminError, setStorageAdminError] = useState<string | null>(null);
+  useEffect(() => {
+    setStorageAdmin(null);
+    setStorageAdminError(null);
+    if (!user.isAdmin || !user.adminVerification || !user.user?.uid || !isCloudStorageEngine(configuredStorageEngine)) {
+      setStorageAdmin(false);
+      return undefined;
+    }
+    let cancelled = false;
+    configuredStorageEngine.isStorageAdmin()
+      .then((verified) => {
+        if (!cancelled) {
+          setStorageAdmin(verified);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setStorageAdmin(false);
+          setStorageAdminError(error instanceof Error ? error.message : String(error));
+        }
+      });
+    return () => { cancelled = true; };
+  }, [configuredStorageEngine, user.adminVerification, user.isAdmin, user.user?.uid]);
+  const [ref, { width }] = useResizeObserver();
+  const [footerRef, { height: footerHeight }] = useResizeObserver();
+  const canonicalStudyId = useMemo(() => {
+    if (!routeStudyId || routeStudyId === '__revisit-widget') {
+      return routeStudyId;
+    }
+
+    return resolveConfigKey(routeStudyId, globalConfig);
+  }, [globalConfig, routeStudyId]);
+  const displayStudyId = canonicalStudyId ?? routeStudyId;
+
+  // 0-1 percentage of scroll height
+
+  const { value: expData, execute, status } = useAsync(
+    getParticipantsData,
+    isStorageTab ? null : [studyConfig, storageEngine, canonicalStudyId ?? undefined],
+  );
+  const { value: currentConfigHashValue, status: currentConfigStatus } = useAsync(
+    getCurrentConfigHashForStudy,
+    storageEngine && canonicalStudyId && !isStorageTab ? [storageEngine, canonicalStudyId] : null,
+  );
+  const studyUsesConditions = useMemo(
+    () => (studyConfig?.sequence ? getSequenceConditions(studyConfig.sequence).length > 0 : false),
+    [studyConfig],
+  );
+
+  const participantCounts = useMemo(() => {
+    if (!expData) {
+      return emptyParticipantStatusCounts();
+    }
+    const expList = Object.values(expData);
+
+    // Apply config filter before counting
+    const configFiltered = selectedConfigs.includes('ALL') || selectedConfigs.length === 0
+      ? expList
+      : expList.filter((d) => selectedConfigs.includes(d.participantConfigHash || ''));
+
+    // Apply stage filter before counting
+    const stageFiltered = selectedStages.includes('ALL')
+      ? configFiltered
+      : configFiltered.filter((d) => selectedStages.includes(d.stage || ''));
+
+    // Apply condition filter before counting
+    const conditionFiltered = selectedConditions.includes('ALL')
+      ? stageFiltered
+      : stageFiltered.filter((d) => {
+        const conds = getParticipantConditions(d);
+        if (studyUsesConditions && selectedConditions.includes('default') && conds.length === 0) {
+          return true;
+        }
+        return conds.some((c) => selectedConditions.includes(c));
+      });
+
+    return countParticipantStatuses(conditionFiltered, getParticipantDataStatus);
+  }, [expData, selectedStages, selectedConfigs, selectedConditions, studyUsesConditions]);
+
+  const selectedParticipantCounts = useMemo(
+    () => countParticipantStatuses(selectedParticipants, getParticipantDataStatus),
+    [selectedParticipants],
+  );
+
+  const currentConfigHash = currentConfigHashValue ?? undefined;
+  const isFirebaseEngine = storageEngine?.getEngine() === 'firebase';
+  const codingEnabled = isFirebaseEngine && hasAudioRecording;
+  const canManageStorage = storageAdmin === true;
+
+  const currentConfigLabel = useMemo(() => {
+    if (!currentConfigHash) return undefined;
+    const currentConfig = allConfigs[currentConfigHash];
+    if (!currentConfig) return undefined;
+    return `${currentConfig.studyMetadata.version} - ${currentConfigHash.slice(0, 6)}`;
+  }, [allConfigs, currentConfigHash]);
+
+  const configSelectData = useMemo(() => {
+    const decoratedOptions = availableConfigs.map((configOption) => ({
+      ...configOption,
+    }));
+
+    const allOption = decoratedOptions.find((configOption) => configOption.value === 'ALL');
+    const currentOption = decoratedOptions.find((configOption) => configOption.value === currentConfigHash);
+    const remainingOptions = decoratedOptions.filter((configOption) => configOption.value !== 'ALL' && configOption.value !== currentConfigHash);
+
+    return [
+      ...(allOption ? [allOption] : []),
+      ...(currentOption ? [currentOption] : []),
+      ...remainingOptions,
+    ];
+  }, [availableConfigs, currentConfigHash]);
+
+  const visibleParticipants = useMemo(() => {
+    if (!expData) return [];
+    const expList = Object.values(expData);
+
+    const statusFiltered = expList.filter(
+      (d) => includedParticipants.includes(getParticipantDataStatus(d)),
+    );
+
+    // Apply config filter - if "ALL" is selected, show all participants
+    const configFiltered = selectedConfigs.includes('ALL')
+      ? statusFiltered
+      : statusFiltered.filter((d) => selectedConfigs.includes(d.participantConfigHash || ''));
+
+    // Apply stage filter - if "ALL" is selected, show all participants
+    const stageFiltered = selectedStages.includes('ALL')
+      ? configFiltered
+      : configFiltered.filter((d) => selectedStages.includes(d.stage || ''));
+
+    // Apply condition filter - if "ALL" is selected, show all participants
+    const conditionFiltered = selectedConditions.includes('ALL')
+      ? stageFiltered
+      : stageFiltered.filter((d) => {
+        const conds = getParticipantConditions(d);
+        if (studyUsesConditions && selectedConditions.includes('default') && conds.length === 0) {
+          return true;
+        }
+        return conds.some((c) => selectedConditions.includes(c));
+      });
+
+    return conditionFiltered.sort(sortByStartTime);
+  }, [expData, includedParticipants, selectedStages, selectedConfigs, selectedConditions, studyUsesConditions]);
+
+  // Load available stages
+  const loadStages = useCallback(async () => {
+    if (!canonicalStudyId || !storageEngine || isStorageTab) return;
+
+    try {
+      const stageData = await storageEngine.getStageData(canonicalStudyId);
+      const stageOptions = stageData.allStages.map((stage) => ({
+        value: stage.stageName,
+        label: stage.stageName,
+      }));
+      setAvailableStages([{ value: 'ALL', label: 'ALL' }, ...stageOptions]);
+      // Create a map of stage names to colors
+      const colors: Record<string, string> = {};
+      stageData.allStages.forEach((stage) => {
+        colors[stage.stageName] = stage.color;
+      });
+      setStageColors(colors);
+    } catch (error) {
+      console.error('Failed to load stages:', error);
+      setAvailableStages([{ value: 'ALL', label: 'ALL' }]);
+      setStageColors({});
+    }
+  }, [canonicalStudyId, storageEngine, isStorageTab]);
+
+  // Load available configs
+  const loadConfigs = useCallback(async () => {
+    if (!canonicalStudyId || !storageEngine || isStorageTab) return;
+
+    try {
+      const participantData = expData ? Object.values(expData) : [];
+      const participantConfig = [...new Set(
+        participantData.map((participant) => participant.participantConfigHash),
+      )].filter((hash): hash is string => Boolean(hash));
+
+      const configHashesToLoad = currentConfigHash
+        ? [...new Set([currentConfigHash, ...participantConfig])]
+        : participantConfig;
+
+      const fetchedConfigs = await storageEngine.getAllConfigsFromHash(configHashesToLoad, canonicalStudyId);
+
+      const configOptions = Object.entries(fetchedConfigs)
+        .map(([hash, config]) => ({
+          value: hash,
+          label: `${config.studyMetadata.version} - ${hash.slice(0, 6)}`,
+        }));
+      setAvailableConfigs([{ value: 'ALL', label: 'ALL' }, ...configOptions]);
+      setAllConfigs(fetchedConfigs);
+    } catch (error) {
+      console.error('Failed to load configs:', error);
+      setAvailableConfigs([{ value: 'ALL', label: 'ALL' }]);
+      setAllConfigs({});
+    }
+  }, [canonicalStudyId, storageEngine, expData, currentConfigHash, isStorageTab]);
+
+  const allConditions = useMemo(() => {
+    if (!expData) return [];
+    const conditionSet = new Set<string>();
+    Object.values(expData).forEach((participant) => {
+      const participantConditions = getParticipantConditions(participant);
+      if (studyUsesConditions && participantConditions.length === 0) {
+        conditionSet.add('default');
+      }
+      participantConditions.forEach((condition) => conditionSet.add(condition));
+    });
+    return Array.from(conditionSet).sort();
+  }, [expData, studyUsesConditions]);
+
+  // Load configs and clear selection when dependencies change
+  useEffect(() => {
+    loadConfigs();
+    setSelectedParticipants([]);
+  }, [loadConfigs]);
+
+  // Load stages and clear selection when dependencies change or tab switches
+  useEffect(() => {
+    loadStages();
+    setSelectedParticipants([]);
+  }, [loadStages, analysisTab]);
+
+  // Load condition options from already-loaded participant data and clear selection when they change
+  useEffect(() => {
+    if (allConditions.length === 0) {
+      setAvailableConditions([]);
+      setSelectedConditions(['ALL']);
+      setSelectedParticipants([]);
+      return;
+    }
+
+    const conditionOptions = allConditions.map((condition) => ({
+      value: condition,
+      label: condition,
+    }));
+    setAvailableConditions([{ value: 'ALL', label: 'ALL' }, ...conditionOptions]);
+    setSelectedConditions((previousSelection) => {
+      const validSelections = new Set(['ALL', ...allConditions]);
+      const nextSelection = previousSelection.filter((value) => validSelections.has(value));
+      return nextSelection.length > 0 ? nextSelection : ['ALL'];
+    });
+    setSelectedParticipants([]);
+  }, [allConditions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStartupError(null);
+    setStudyConfig(undefined);
+
+    if (!routeStudyId || isStorageTab) return () => { };
+    if (routeStudyId === '__revisit-widget') {
+      const messageListener = (event: MessageEvent) => {
+        if (event.data.type === 'revisitWidget/CONFIG' && storageEngine) {
+          parseStudyConfig(event.data.payload)
+            .then((cf) => {
+              if (!cancelled) {
+                setStudyConfig(cf);
+              }
+            })
+            .catch((error) => {
+              console.error('Failed to load widget study config for analysis:', error);
+              if (!cancelled) {
+                setStartupError({ error });
+              }
+            });
+        }
+      };
+
+      window.addEventListener('message', messageListener);
+      window.parent.postMessage({ type: 'revisitWidget/READY' }, '*');
+      return () => {
+        cancelled = true;
+        window.removeEventListener('message', messageListener);
+      };
+    }
+
+    getStudyConfig(routeStudyId, globalConfig)
+      .then((cf) => {
+        if (!cancelled && cf) {
+          setStudyConfig(cf);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load study config for analysis:', error);
+        if (!cancelled) {
+          setStartupError({ error });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [routeStudyId, globalConfig, storageEngine, isStorageTab]);
+
+  if (startupError) {
+    return <StartupErrorScreen error={startupError.error} />;
+  }
+
+  if (studyConfig?.errors?.length) {
+    return (
+      <>
+        <AppHeader
+          studyIds={globalConfig.configsList}
+          selectedStudyId={displayStudyId}
+          studyConfigs={displayStudyId ? { [displayStudyId]: studyConfig } : undefined}
+        />
+        <AppShell.Main>
+          <ErrorLoadingConfig issues={studyConfig.errors} type="error" />
+        </AppShell.Main>
+      </>
+    );
+  }
+
+  if (!routeStudyId) {
+    return (
+      <>
+        <AppHeader studyIds={globalConfig.configsList} />
+        <AppShell.Main style={{ height: '100dvh' }}>
+          <Center style={{ height: '100%' }}>
+            <Text>Select a study from the header menu to view analysis data.</Text>
+          </Center>
+        </AppShell.Main>
+      </>
+    );
+  }
+
+  if (canonicalStudyId === null || !['summary', 'table', 'stats', 'tagging', 'live-monitor', 'config', 'stages', 'manage', 'storage'].includes(analysisTab ?? '')) {
+    return (
+      <>
+        <AppHeader studyIds={globalConfig.configsList} selectedStudyId={displayStudyId} />
+        <AppShell.Main>
+          <ResourceNotFound email={canonicalStudyId ? studyConfig?.uiConfig.contactEmail : undefined} />
+        </AppShell.Main>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <AppHeader studyIds={globalConfig.configsList} selectedStudyId={displayStudyId} studyConfigs={studyConfig && displayStudyId ? { [displayStudyId]: studyConfig } : undefined} />
+      <AppShell.Main style={{ height: '100dvh', paddingBottom: analysisTab === 'tagging' && codingEnabled ? `calc(var(--app-shell-padding) + ${footerHeight}px)` : undefined }}>
+        <Stack ref={ref} style={{ height: '100%', maxHeight: '100dvh', overflow: 'hidden' }} justify="space-between">
+          <Flex direction="row" align="center" justify="space-between" p="sm" gap="md" wrap="wrap" style={{ minWidth: 0 }}>
+            <Flex direction="row" align="center" gap="md" wrap="nowrap" style={{ minWidth: 0 }}>
+              <Title
+                order={5}
+                title={displayStudyId}
+                style={{
+                  flexShrink: 1,
+                  minWidth: 0,
+                  maxWidth: 'min(30vw, 360px)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {displayStudyId}
+              </Title>
+              {studyConfig && canonicalStudyId && (
+                <Group gap="sm" wrap="nowrap">
+                  <DownloadButtons
+                    visibleParticipants={selectedParticipants.length > 0 ? selectedParticipants : visibleParticipants}
+                    studyId={canonicalStudyId}
+                    gap="10px"
+                    hasAudio={hasAudioRecording}
+                    hasScreenRecording={hasScreenRecording}
+                    hasWebcamRecording={hasWebcamRecording}
+                  />
+                </Group>
+              )}
+            </Flex>
+            <Flex direction="row" align="center" gap="md" wrap="nowrap">
+              <Flex direction="row" align="center" gap="xs" wrap="nowrap">
+                <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>Stage:</Text>
+                <MultiSelect
+                  data={availableStages}
+                  value={selectedStages}
+                  onChange={(values) => {
+                    if (values.includes('ALL') && !selectedStages.includes('ALL')) {
+                      setSelectedStages(['ALL']);
+                    } else if (values.includes('ALL') && selectedStages.includes('ALL')) {
+                      setSelectedStages(values.filter((v) => v !== 'ALL'));
+                    } else if (values.length === 0) {
+                      setSelectedStages(['ALL']);
+                    } else {
+                      setSelectedStages(values);
+                    }
+                  }}
+                  w={180}
+                  size="sm"
+                  clearable={false}
+                  maxValues={5}
+                  styles={{
+                    input: {
+                      minHeight: '36px',
+                    },
+                  }}
+                />
+              </Flex>
+
+              <Flex direction="row" align="center" gap="xs" wrap="nowrap">
+                <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>Config:</Text>
+                <MultiSelect
+                  data={configSelectData}
+                  value={selectedConfigs}
+                  renderOption={({ option }) => (
+                    <Flex align="center" gap="xs" wrap="nowrap" w="100%">
+                      <Text
+                        size="sm"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {option.label}
+                      </Text>
+                      {option.value === currentConfigHash && (
+                        <Badge
+                          size="xs"
+                          variant="light"
+                          px={6}
+                          py={0}
+                          style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                        >
+                          Current
+                        </Badge>
+                      )}
+                    </Flex>
+                  )}
+                  onChange={(values) => {
+                    if (values.includes('ALL') && !selectedConfigs.includes('ALL')) {
+                      setSelectedConfigs(['ALL']);
+                    } else if (values.includes('ALL') && selectedConfigs.includes('ALL')) {
+                      setSelectedConfigs(values.filter((v) => v !== 'ALL'));
+                    } else if (values.length === 0) {
+                      setSelectedConfigs(['ALL']);
+                    } else {
+                      setSelectedConfigs(values);
+                    }
+                  }}
+                  w={180}
+                  size="sm"
+                  clearable={false}
+                  maxValues={5}
+                  styles={{
+                    input: {
+                      minHeight: '36px',
+                    },
+                  }}
+                />
+              </Flex>
+
+              {availableConditions.length > 0 && (
+                <Flex direction="row" align="center" gap="xs" wrap="nowrap">
+                  <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>Condition:</Text>
+                  <MultiSelect
+                    data={availableConditions}
+                    value={selectedConditions}
+                    onChange={(values) => {
+                      if (values.includes('ALL') && !selectedConditions.includes('ALL')) {
+                        setSelectedConditions(['ALL']);
+                      } else if (values.includes('ALL') && selectedConditions.includes('ALL')) {
+                        setSelectedConditions(values.filter((v) => v !== 'ALL'));
+                      } else if (values.length === 0) {
+                        setSelectedConditions(['ALL']);
+                      } else {
+                        setSelectedConditions(values);
+                      }
+                    }}
+                    w={180}
+                    size="sm"
+                    clearable={false}
+                    maxValues={5}
+                    styles={{
+                      input: {
+                        minHeight: '36px',
+                      },
+                    }}
+                  />
+                </Flex>
+              )}
+
+              <Flex direction="row" align="center" gap="xs" wrap="nowrap">
+                <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>Participants:</Text>
+                <Checkbox.Group
+                  value={includedParticipants}
+                  onChange={(e) => setIncludedParticipants(e)}
+                >
+                  <Group gap={6} wrap="nowrap">
+                    {PARTICIPANT_STATUSES.map((participantStatus) => (
+                      <Checkbox
+                        key={participantStatus}
+                        value={participantStatus}
+                        label={selectedParticipants.length > 0
+                          ? `${PARTICIPANT_STATUS_LABELS[participantStatus]} (${selectedParticipantCounts[participantStatus]} of ${participantCounts[participantStatus]})`
+                          : `${PARTICIPANT_STATUS_LABELS[participantStatus]} (${participantCounts[participantStatus]})`}
+                        size="xs"
+                        styles={{ label: { whiteSpace: 'nowrap' } }}
+                      />
+                    ))}
+                  </Group>
+                </Checkbox.Group>
+              </Flex>
+            </Flex>
+          </Flex>
+          <Divider style={{ marginBlock: -4 }} />
+          <LoadingOverlay visible={!isStorageTab && status === 'pending'} />
+          {storageAdminError && <Alert color="red" title="Datastore access unavailable">{storageAdminError}</Alert>}
+
+          {status === 'success' || isStorageTab ? (
+            <Tabs
+              style={{
+                flexGrow: 1, display: 'flex', minHeight: 0, overflow: 'hidden',
+              }}
+              keepMounted={false}
+              orientation="vertical"
+              styles={{ tab: { paddingLeft: 6 }, tabLabel: { textAlign: 'left' } }}
+              variant="outline"
+              value={analysisTab}
+              onChange={(value) => navigate(`/analysis/stats/${routeStudyId}/${value}`)}
+            >
+              <Tabs.List style={{ flex: '0 0 190px', overflowY: 'auto' }}>
+                <Tabs.Tab value="summary" leftSection={<IconChartPie size={16} />} style={{ justifyContent: 'flex-start' }}>Study Summary</Tabs.Tab>
+                <Tabs.Tab value="table" leftSection={<IconTable size={16} />} style={{ justifyContent: 'flex-start' }}>Participant View</Tabs.Tab>
+                <Tabs.Tab value="stats" leftSection={<IconChartDonut2 size={16} />} style={{ justifyContent: 'flex-start' }}>Trial Stats</Tabs.Tab>
+                <Tooltip
+                  label={!isFirebaseEngine
+                    ? 'Think aloud coding is only available when using Firebase and when audio recording is enabled in your study config'
+                    : 'Think aloud coding is only available for studies with audio recording enabled in your study config'}
+                  disabled={codingEnabled}
+                >
+                  <span>
+                    <Tabs.Tab value="tagging" leftSection={<IconTags size={16} />} disabled={!codingEnabled} style={{ justifyContent: 'flex-start' }}>Coding</Tabs.Tab>
+                  </span>
+                </Tooltip>
+                <Tabs.Tab value="live-monitor" leftSection={<IconDashboard size={16} />} style={{ justifyContent: 'flex-start' }}>Live Monitor</Tabs.Tab>
+                <Tabs.Tab value="config" leftSection={<IconFileCode size={16} />} style={{ justifyContent: 'flex-start' }}>Config</Tabs.Tab>
+                <Tabs.Tab value="stages" leftSection={<IconSettings size={16} />} disabled={!user.isAdmin} style={{ justifyContent: 'flex-start' }}>Stage Management</Tabs.Tab>
+                <Tabs.Tab value="manage" leftSection={<IconSettings size={16} />} disabled={!user.isAdmin} style={{ justifyContent: 'flex-start' }}>Manage</Tabs.Tab>
+                {user.isAdmin && user.adminVerification && isCloudStorageEngine(configuredStorageEngine) && storageAdmin !== false && (
+                  <Tabs.Tab value="storage" leftSection={<IconDatabase size={16} />} disabled={!canManageStorage} style={{ justifyContent: 'flex-start' }}>Datastore</Tabs.Tab>
+                )}
+              </Tabs.List>
+              <Stack gap={0} pl="xs" pr="sm" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="summary" pt="xs">
+                  {studyConfig && (
+                    <SummaryView
+                      studyConfig={studyConfig}
+                      visibleParticipants={visibleParticipants}
+                      allConfigs={allConfigs}
+                      currentConfigLabel={currentConfigLabel}
+                    />
+                  )}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="table" pt="xs">
+                  {studyConfig && <TableView width={width} stageColors={stageColors} visibleParticipants={visibleParticipants} participantsForTimeout={expData ?? []} studyConfig={studyConfig} allConfigs={allConfigs} refresh={() => execute(studyConfig, storageEngine, canonicalStudyId ?? undefined)} selectedParticipants={selectedParticipants} onSelectionChange={setSelectedParticipants} />}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="stats" pt="xs">
+                  {studyConfig && <StatsView studyConfig={studyConfig} visibleParticipants={visibleParticipants} allConfigs={allConfigs} />}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="tagging" pt="xs">
+                  {studyConfig && codingEnabled
+                    ? <ThinkAloudAnalysis footerRef={footerRef} visibleParticipants={visibleParticipants} storageEngine={storageEngine as FirebaseStorageEngine} />
+                    : (
+                      <Center>
+                        <Text c="dimmed">
+                          {!isFirebaseEngine
+                            ? 'Think aloud coding is only available when using Firebase and when audio recording is enabled in your study config'
+                            : 'Think aloud coding is only available for studies with audio recording enabled in your study config'}
+                        </Text>
+                      </Center>
+                    )}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="live-monitor" pt="xs">
+                  <Stack gap="sm">
+                    <AutoTimeoutSettings storageEngine={storageEngine} studyId={canonicalStudyId ?? undefined} />
+                    {studyConfig && isFirebaseEngine
+                      ? <LiveMonitorView studyConfig={studyConfig} storageEngine={storageEngine} studyId={canonicalStudyId ?? undefined} includedParticipants={includedParticipants} selectedStages={selectedStages} />
+                      : (
+                        <Center>
+                          <Text c="dimmed">Live participant monitoring is only available when using Firebase</Text>
+                        </Center>
+                      )}
+                  </Stack>
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="config" pt="xs">
+                  {studyConfig && <ConfigView visibleParticipants={visibleParticipants} studyId={canonicalStudyId ?? undefined} currentConfigHash={currentConfigHash} currentConfigStatus={currentConfigStatus} />}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="stages" pt="xs">
+                  {canonicalStudyId && user.isAdmin ? <StageManagementItem studyId={canonicalStudyId} studyConfig={studyConfig} /> : <Container mt={20}><Alert title="Unauthorized Access" variant="light" color="red" icon={<IconInfoCircle />}>You are not authorized to manage the data for this study.</Alert></Container>}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="manage" pt="xs">
+                  {canonicalStudyId && user.isAdmin ? <ManageView studyId={canonicalStudyId} refresh={() => execute(studyConfig, storageEngine, canonicalStudyId)} /> : <Container mt={20}><Alert title="Unauthorized Access" variant="light" color="red" icon={<IconInfoCircle />}>You are not authorized to manage the data for this study.</Alert></Container>}
+                </Tabs.Panel>
+                <Tabs.Panel style={{ flex: 1, minHeight: 0, overflow: 'auto' }} value="storage" pt="xs">
+                  {storageAdmin === null ? <LoadingOverlay visible /> : canonicalStudyId && canManageStorage ? <StorageManagementView key={canonicalStudyId} studyId={canonicalStudyId} /> : <Container mt={20}><Alert title="Unauthorized Access" variant="light" color="red">Sign in as an administrator to manage storage.</Alert></Container>}
+                </Tabs.Panel>
+              </Stack>
+            </Tabs>
+          ) : null}
+        </Stack>
+      </AppShell.Main>
+    </>
+  );
+}

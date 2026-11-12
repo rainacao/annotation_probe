@@ -1,0 +1,49 @@
+import { LikertResponse, RadioResponse } from '../../parser/types';
+import { RadioInput } from './RadioInput';
+
+export function LikertInput({
+  response,
+  disabled,
+  answer,
+  error,
+  index,
+  enumerateQuestions,
+}: {
+  response: LikertResponse;
+  disabled: boolean;
+  answer: { value?: string };
+  error?: string | null;
+  index: number;
+  enumerateQuestions: boolean;
+}) {
+  const { numItems, start, spacing } = response;
+
+  const options = [];
+  const startValue = start ?? 1;
+  const spacingValue = spacing ?? 1;
+
+  for (let i = 0; i < +numItems; i += 1) {
+    const value = startValue + (i * spacingValue);
+    options.push({ label: `${value}`, value: `${value}` });
+  }
+
+  const radioResponse: RadioResponse = {
+    ...response,
+    type: 'radio',
+    options,
+    horizontal: true,
+    default: response.default !== undefined ? response.default.toString() : undefined,
+  };
+
+  return (
+    <RadioInput
+      disabled={disabled}
+      response={radioResponse}
+      answer={answer}
+      error={error}
+      index={index}
+      enumerateQuestions={enumerateQuestions}
+      stretch
+    />
+  );
+}

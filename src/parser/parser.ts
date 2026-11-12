@@ -1,0 +1,868 @@
+import Ajv from 'ajv';
+import Handlebars from 'handlebars';
+import { parseDocument } from 'yaml';
+import { verifyGlobalStoreConfig } from './globalStore';
+import configSchema from './StudyConfigSchema.json';
+import globalSchema from './GlobalConfigSchema.json';
+import {
+  GlobalConfig, LibraryConfig, ParsedConfig, StudyConfig, ParserErrorWarning, IndividualComponent, ResponseVisibilityCondition,
+} from './types';
+import { getSequenceFlatMapWithInterruptions } from '../utils/getSequenceFlatMap';
+import {
+  compileFactorBlocks, expandLibrarySequences, loadLibrariesParseNamespace, validateBetweenSubjects, verifyLibraryUsage,
+} from './libraryParser';
+import {
+  isDynamicBlock, isFactorBlock, isFactorRuntimePlanBlock, isInheritedComponent,
+} from './utils';
+import {
+  DEFAULT_CONTACT_EMAIL,
+  DEFAULT_FIREBASE_WARNING_ACTION,
+  DEFAULT_FIREBASE_WARNING_MESSAGE,
+  DEFAULT_SUPABASE_WARNING_ACTION,
+  DEFAULT_SUPABASE_WARNING_MESSAGE,
+  getCurrentHostname,
+  shouldSuppressDefaultDeploymentWarnings,
+  shouldWarnForDefaultFirebaseConfig,
+  shouldWarnForDefaultSupabaseConfig,
+} from '../utils/defaultStorageConfig';
+import { studyComponentToIndividualComponent } from '../utils/handleComponentInheritance';
+import {
+  getDateValueFormat,
+  isValidTime,
+  parseDateValue,
+} from '../utils/dateTimeValidation';
+import { verifyTextResponseConstraints } from '../utils/textResponseConstraints';
+import { responseValueKeys, visibilityControllerTypes } from '../utils/responseVisibility';
+import { getDropdownOptions } from '../utils/dropdownOptions';
+import { normalizeKeyMapping } from '../utils/keyMapping';
+import { hasResponseScorer } from '../utils/correctAnswer';
+
+const modules = import.meta.glob(
+  [
+    '../public/**/*.{mjs,js,mts,ts,jsx,tsx}',
+    '!../public/**/*.spec.{mjs,js,mts,ts,jsx,tsx}',
+  ],
+  { eager: false }, // the parser only checks if the path exists
+);
+const ajv1 = new Ajv({ allowUnionTypes: true });
+ajv1.addSchema(globalSchema);
+const globalValidate = ajv1.getSchema<GlobalConfig>('#/definitions/GlobalConfig')!;
+
+const ajv2 = new Ajv({ allowUnionTypes: true });
+ajv2.addSchema(configSchema);
+const studyValidate = ajv2.getSchema<StudyConfig>('#/definitions/StudyConfig')!;
+const visibilityConditionValidate = ajv2.getSchema<ResponseVisibilityCondition>('#/definitions/ResponseVisibilityCondition')!;
+
+// This function verifies the global config file satisfies conditions that are not covered by the schema
+function verifyGlobalConfig(data: GlobalConfig) {
+  const errors: { message: string; instancePath: string }[] = [];
+  data.configsList.forEach((configName, index) => {
+    if (data.configs[configName] === undefined) {
+      errors.push({
+        message: `Config \`${configName}\` is not defined in configs object, but is present in configsList`,
+        instancePath: `/configsList/${index}`,
+      });
+    }
+  });
+
+  const labels = new Set<string>();
+  data.tabs?.forEach(({ label }, index) => {
+    if (!label.trim()) {
+      errors.push({ message: 'Tab label must not be blank', instancePath: `/tabs/${index}/label` });
+    } else if (labels.has(label)) {
+      errors.push({ message: `Tab label "${label}" is duplicated; tab labels must be unique`, instancePath: `/tabs/${index}/label` });
+    }
+    labels.add(label);
+  });
+
+  Object.entries(data.configs).forEach(([configName, config]) => {
+    if (config.tab !== undefined && !labels.has(config.tab)) {
+      errors.push({
+        message: `Config "${configName}" references undefined tab "${config.tab}"; use a label from tabs or omit tab`,
+        instancePath: `/configs/${configName.replace(/~/g, '~0').replace(/\//g, '~1')}/tab`,
+      });
+    }
+  });
+
+  return errors;
+}
+
+export function parseGlobalConfig(fileData: string) {
+  const data = JSON.parse(fileData);
+
+  const validatedData = globalValidate(data);
+  const extraValidation = validatedData ? verifyGlobalConfig(data) : [];
+
+  if (validatedData && extraValidation.length === 0) {
+    return data;
+  }
+  const errors = [...(globalValidate.errors || []), ...extraValidation];
+  console.error('Global config parsing errors', errors);
+  throw Error(`There was an issue validating your file global.json: ${errors.map(({ instancePath, message }) => `${instancePath}: ${message}`).join('; ')}`);
+}
+
+// Recursive function to verify that the skip.to component exists after the block it is used in
+// When we encounter a skip block, add the skip.to component to the skipTargets array
+// When we then encounter a component that is in the skipTargets array, remove it from the array
+// Return the array of skipTargets at the end of the sequence
+function verifyStudySkip(
+  sequence: StudyConfig['sequence'],
+  skipTargets: string[],
+  errors: ParserErrorWarning[] = [],
+  warnings: ParserErrorWarning[] = [],
+) {
+  const removeTargetInPlace = (targetName: string) => {
+    // Walk backward so removing items does not affect yet-to-visit indices.
+    for (let index = skipTargets.length - 1; index >= 0; index -= 1) {
+      if (skipTargets[index] === targetName) {
+        skipTargets.splice(index, 1);
+      }
+    }
+  };
+
+  if (isDynamicBlock(sequence)) {
+    if (sequence.id) {
+      removeTargetInPlace(sequence.id);
+    }
+    return;
+  }
+
+  if (isFactorBlock(sequence) || isFactorRuntimePlanBlock(sequence)) {
+    if (sequence.id) {
+      removeTargetInPlace(sequence.id);
+    }
+    if (sequence.skip && sequence.skip.length > 0) {
+      skipTargets.push(...sequence.skip.map((skip) => skip.to).filter((target) => target !== 'end'));
+    }
+    return;
+  }
+
+  // If the block has an ID, remove it from the skipTargets array
+  if (sequence.id) {
+    removeTargetInPlace(sequence.id);
+  }
+
+  // Base case: empty sequence
+  if (sequence.components.length === 0) {
+    // Push a warning for an empty components array
+    warnings.push({
+      message: 'Sequence has an empty components array',
+      instancePath: '/sequence/',
+      params: { action: 'Remove empty components block or add components to the sequence' },
+      category: 'sequence-validation',
+    });
+    return;
+  }
+
+  // Recursive case: sequence has at least one component
+  sequence.components.forEach((component) => {
+    if (typeof component === 'string') {
+      // If the component is a string, check if it is in the skipTargets array
+      if (skipTargets.includes(component)) {
+        removeTargetInPlace(component);
+      }
+    } else {
+      // Recursive case: component is a block
+      verifyStudySkip(component, skipTargets, errors, warnings);
+    }
+  });
+
+  // If this block has a skip, add the skip.to component to the skipTargets array
+  if (sequence.skip && sequence.skip.length > 0) {
+    skipTargets.push(...sequence.skip.map((skip) => skip.to).filter((target) => target !== 'end'));
+  }
+}
+
+function isTemplatedPath(path: string) {
+  if (!path.includes('{{')) {
+    return false;
+  }
+
+  try {
+    const ast = Handlebars.parse(path) as unknown;
+    const hasRuntimeExpression = (node: unknown): boolean => {
+      if (Array.isArray(node)) {
+        return node.some(hasRuntimeExpression);
+      }
+      if (!node || typeof node !== 'object') {
+        return false;
+      }
+
+      const { type } = node as { type?: unknown };
+      if (type === 'MustacheStatement' || type === 'BlockStatement') {
+        const pathType = (node as { path?: { type?: unknown } }).path?.type;
+        return pathType === 'PathExpression';
+      }
+
+      return Object.entries(node).some(([key, value]) => key !== 'loc' && hasRuntimeExpression(value));
+    };
+
+    return hasRuntimeExpression(ast);
+  } catch {
+    return false;
+  }
+}
+
+function verifyReactComponent(
+  instancePath: string,
+  component: Partial<IndividualComponent>,
+  errors: ParserErrorWarning[],
+) {
+  if (
+    'path' in component
+      && component.path != null
+      && component.type === 'react-component'
+      // A templated path (e.g. `{{file}}.tsx`) can't be resolved until runtime, once
+      // parameters/answers are known, so it can never match a real file in this static glob.
+      && !isTemplatedPath(component.path)
+      && !(`../public/${component.path}` in modules)
+  ) {
+    errors.push({
+      message: 'Unresolved path',
+      instancePath,
+      params: {
+        action: 'Make sure the React component is in `src/public/`, not `public/`',
+      },
+      category: 'undefined-component',
+    });
+  }
+}
+
+function verifyWebsiteComponent(
+  instancePath: string,
+  component: Partial<IndividualComponent>,
+  warnings: ParserErrorWarning[],
+) {
+  if (component.type !== 'website' || !component.templated || component.path == null) {
+    return;
+  }
+
+  if (component.path.startsWith('http')) {
+    warnings.push({
+      message: '`templated` is ignored for external websites, which cannot be fetched and rewritten',
+      instancePath,
+      params: { action: 'Remove `templated` or move the website into the study\'s public folder' },
+      category: 'invalid-config',
+    });
+    return;
+  }
+
+  // A templated path can't be resolved until runtime, so its extension is unknown here.
+  if (!isTemplatedPath(component.path) && !/\.x?html?$/i.test(component.path)) {
+    warnings.push({
+      message: '`templated` is set on a website component whose path is not an HTML file',
+      instancePath,
+      params: { action: 'Point `path` at an HTML file or remove `templated`' },
+      category: 'invalid-config',
+    });
+  }
+}
+
+function isUrlConditionalBlock(sequence: StudyConfig['sequence']): boolean {
+  return !isFactorBlock(sequence) && sequence.conditional === true && Boolean(sequence.id);
+}
+
+function verifyDropdownResponseConstraints(
+  componentPath: string,
+  component: Partial<IndividualComponent>,
+  errors: ParserErrorWarning[],
+) {
+  component.response?.forEach((response, index) => {
+    if (response.type !== 'dropdown' || response.options !== 'countries') {
+      return;
+    }
+
+    const responsePath = `${componentPath}/response/${index}`;
+    const countryValues = new Set(getDropdownOptions(response).map((option) => option.value));
+
+    (['default', 'requiredValue'] as const).forEach((field) => {
+      const configuredValue = field === 'default' ? response.default : response.requiredValue;
+      if (configuredValue === undefined || configuredValue === null) {
+        return;
+      }
+
+      const values = Array.isArray(configuredValue) ? configuredValue : [configuredValue];
+      values.forEach((value, valueIndex) => {
+        if (typeof value === 'string' && countryValues.has(value)) {
+          return;
+        }
+
+        const valuePath = Array.isArray(configuredValue)
+          ? `${responsePath}/${field}/${valueIndex}`
+          : `${responsePath}/${field}`;
+        errors.push({
+          message: `dropdown ${field} value \`${String(value)}\` is not a valid country code`,
+          instancePath: valuePath,
+          params: { action: `Set ${field} to a valid country code from the countries preset` },
+          category: 'invalid-config',
+        });
+      });
+    });
+  });
+}
+
+function verifyDateTimeResponseConstraints(
+  componentPath: string,
+  component: Partial<IndividualComponent>,
+  errors: ParserErrorWarning[],
+  allowTemplates = false,
+) {
+  component.response?.forEach((response, index) => {
+    if (response.type !== 'date' && response.type !== 'time') {
+      return;
+    }
+
+    const responsePath = `${componentPath}/response/${index}`;
+    const isDateResponse = response.type === 'date';
+    const dateOptions = isDateResponse ? response.options ?? 'date' : 'date';
+    const isValidValue = isDateResponse
+      ? (value: string) => parseDateValue(value, dateOptions) !== null
+      : (value: string) => isValidTime(value, response.withSeconds);
+    const expectedFormat = response.type === 'date'
+      ? getDateValueFormat(dateOptions)
+      : response.withSeconds ? 'HH:mm:ss' : 'HH:mm';
+    const fields = ['default', 'requiredValue', 'min', 'max'] as const;
+
+    fields.forEach((field) => {
+      const value = response[field];
+      if (value === undefined || value === null) {
+        return;
+      }
+
+      if (allowTemplates && /{{[^}]+}}/.test(value)) return;
+      if (!isValidValue(value)) {
+        errors.push({
+          message: `${response.type} ${field} must be a valid ${expectedFormat} value`,
+          instancePath: `${responsePath}/${field}`,
+          params: { action: `Set ${field} to a valid ${expectedFormat} value` },
+          category: 'invalid-config',
+        });
+      }
+    });
+
+    const toComparableValue = (value: string) => {
+      if (isDateResponse) {
+        return parseDateValue(value, dateOptions)?.getTime() ?? null;
+      }
+      if (!isValidTime(value, response.withSeconds)) {
+        return null;
+      }
+      return value.split(':').reduce((total, part) => (total * 60) + Number(part), 0);
+    };
+    const min = response.min ? toComparableValue(response.min) : null;
+    const max = response.max ? toComparableValue(response.max) : null;
+    if (min !== null && max !== null && min > max) {
+      errors.push({
+        message: `${response.type} min must be less than or equal to max`,
+        instancePath: responsePath,
+        params: { action: 'Set min to a value less than or equal to max' },
+        category: 'invalid-config',
+      });
+      return;
+    }
+
+    (['default', 'requiredValue'] as const).forEach((field) => {
+      const value = response[field];
+      const comparableValue = value ? toComparableValue(value) : null;
+      if (comparableValue === null) {
+        return;
+      }
+
+      if (min !== null && comparableValue < min) {
+        errors.push({
+          message: `${response.type} ${field} must be ${isDateResponse ? 'on' : 'at'} or after min`,
+          instancePath: `${responsePath}/${field}`,
+          params: { action: `Set ${field} to a value greater than or equal to min` },
+          category: 'invalid-config',
+        });
+      }
+      if (max !== null && comparableValue > max) {
+        errors.push({
+          message: `${response.type} ${field} must be ${isDateResponse ? 'on' : 'at'} or before max`,
+          instancePath: `${responsePath}/${field}`,
+          params: { action: `Set ${field} to a value less than or equal to max` },
+          category: 'invalid-config',
+        });
+      }
+    });
+  });
+}
+
+function hasConditionalBlock(sequence: StudyConfig['sequence']): boolean {
+  if (isUrlConditionalBlock(sequence)) {
+    return true;
+  }
+
+  if (isDynamicBlock(sequence) || isFactorBlock(sequence)) {
+    return false;
+  }
+
+  return sequence.components.some((component) => (
+    typeof component !== 'string'
+    && hasConditionalBlock(component)
+  ));
+}
+
+function hasConditionalBlockInsideRestrictedOrderAncestor(
+  sequence: StudyConfig['sequence'],
+  hasRestrictedOrderAncestor = false,
+): boolean {
+  if (hasRestrictedOrderAncestor && isUrlConditionalBlock(sequence)) {
+    return true;
+  }
+
+  if (isDynamicBlock(sequence) || isFactorBlock(sequence)) {
+    return false;
+  }
+
+  const childHasRestrictedOrderAncestor = hasRestrictedOrderAncestor
+    || sequence.order === 'random'
+    || sequence.order === 'latinSquare';
+
+  return sequence.components.some((component) => (
+    typeof component !== 'string'
+    && hasConditionalBlockInsideRestrictedOrderAncestor(component, childHasRestrictedOrderAncestor)
+  ));
+}
+
+function verifyKeyMappings(
+  basePath: string,
+  component: Partial<IndividualComponent>,
+  errors: ParsedConfig<StudyConfig>['errors'],
+  warnings: ParsedConfig<StudyConfig>['warnings'],
+  nextOnEnter = false,
+) {
+  if (!component.response || !Array.isArray(component.response)) return;
+
+  const seenMappings = new Map<string, { responseIndex: number; optionIndex: number; label: string }>();
+
+  component.response.forEach((res, resIdx) => {
+    if (res.type !== 'buttons') {
+      return;
+    }
+
+    res.options.forEach((opt, optIdx) => {
+      if (typeof opt !== 'object' || opt === null || !('key' in opt)) {
+        return;
+      }
+
+      const normalizedKey = normalizeKeyMapping(String(opt.key));
+      if (normalizedKey === null) {
+        errors.push({
+          message: `Invalid key mapping \`${String(opt.key)}\` in option \`${opt.label || opt.value}\`. Key mappings must use a single character, a known named key (for example "ArrowRight" or "Space"), or a modifier-plus-key combination such as "Shift+X".`,
+          instancePath: `${basePath}/response/${resIdx}/options/${optIdx}/key`,
+          params: { action: 'Use a single printable key, a valid named key, or a canonical modifier-plus-key value like Shift+X' },
+          category: 'invalid-config',
+        });
+        return;
+      }
+
+      const instancePath = `${basePath}/response/${resIdx}/options/${optIdx}/key`;
+      const parts = normalizedKey.split('+');
+      const baseKey = parts[parts.length - 1];
+      if (baseKey === 'Tab' || (nextOnEnter && normalizedKey === 'Enter')) {
+        errors.push({
+          message: baseKey === 'Tab'
+            ? 'Tab cannot be mapped to a button because it is needed to move keyboard focus.'
+            : 'Enter cannot be mapped to a button when nextOnEnter is enabled.',
+          instancePath,
+          params: { action: baseKey === 'Tab' ? 'Choose another shortcut' : 'Disable nextOnEnter or choose another shortcut' },
+          category: 'invalid-config',
+        });
+      }
+
+      const ignoredModifier = parts.includes('Ctrl') || parts.includes('Meta');
+      const layoutDependent = parts.length > 1 && baseKey.length === 1 && !(parts.length === 2 && parts[0] === 'Shift' && /^[A-Z]$/.test(baseKey));
+      if (ignoredModifier || layoutDependent) {
+        warnings.push({
+          message: `Key mapping \`${String(opt.key)}\` may not work: ${ignoredModifier ? 'Ctrl and Meta shortcuts are ignored.' : 'Modified printable keys can produce different values across keyboard layouts.'}`,
+          instancePath,
+          params: { action: 'Use an unmodified key or a supported named key such as ArrowLeft' },
+          category: 'invalid-config',
+        });
+      }
+
+      const previous = seenMappings.get(normalizedKey);
+      if (previous) {
+        errors.push({
+          message: `Duplicate key mapping \`${normalizedKey}\` in option \`${opt.label || opt.value}\`. A component cannot assign the same key to multiple responses.`,
+          instancePath: `${basePath}/response/${resIdx}/options/${optIdx}/key`,
+          params: { action: `Remove or rename the duplicate mapping for \`${normalizedKey}\`` },
+          category: 'invalid-config',
+        });
+      }
+      seenMappings.set(normalizedKey, { responseIndex: resIdx, optionIndex: optIdx, label: String(opt.label || opt.value) });
+    });
+  });
+}
+
+function verifyCorrectAnswers(
+  basePath: string,
+  component: Partial<IndividualComponent>,
+  errors: ParsedConfig<StudyConfig>['errors'],
+) {
+  component.correctAnswer?.forEach((answer, index) => {
+    if (Object.hasOwn(answer, 'answer') || answer.acceptableAnswers?.length
+      || answer.acceptableLow !== undefined || answer.acceptableHigh !== undefined) return;
+    errors.push({
+      message: 'A correctAnswer must define an answer, a non-empty acceptableAnswers list, or a numeric bound',
+      instancePath: `${basePath}/correctAnswer/${index}`,
+      params: { action: 'Define answer, acceptableAnswers, acceptableLow, or acceptableHigh' },
+      category: 'invalid-config',
+    });
+  });
+}
+
+// This function verifies the study config file satisfies conditions that are not covered by the schema
+function verifyStudyConfig(studyConfig: StudyConfig, importedLibrariesData: Record<string, LibraryConfig>) {
+  const errors: ParsedConfig<StudyConfig>['errors'] = [];
+  const warnings: ParsedConfig<StudyConfig>['warnings'] = [];
+
+  verifyLibraryUsage(studyConfig, errors, warnings, importedLibrariesData);
+  errors.push(...verifyGlobalStoreConfig(studyConfig));
+
+  Object.entries(studyConfig.baseComponents ?? {}).forEach(([componentName, component]) => {
+    verifyCorrectAnswers(`/baseComponents/${componentName}`, component, errors);
+    verifyTextResponseConstraints(`/baseComponents/${componentName}`, component, errors, warnings);
+    verifyDateTimeResponseConstraints(`/baseComponents/${componentName}`, component, errors, true);
+    verifyDropdownResponseConstraints(`/baseComponents/${componentName}`, component, errors);
+    verifyKeyMappings(`/baseComponents/${componentName}`, component, errors, []);
+  });
+  Object.entries(studyConfig.components).forEach(([componentName, component]) => {
+    const mergedComponent = studyComponentToIndividualComponent(component, studyConfig);
+    verifyCorrectAnswers(`/components/${componentName}`, mergedComponent, errors);
+    verifyTextResponseConstraints(`/components/${componentName}`, mergedComponent, errors, warnings);
+    verifyDateTimeResponseConstraints(`/components/${componentName}`, mergedComponent, errors);
+    verifyDropdownResponseConstraints(`/components/${componentName}`, mergedComponent, errors);
+    verifyKeyMappings(`/components/${componentName}`, mergedComponent, errors, warnings, mergedComponent.nextOnEnter ?? studyConfig.uiConfig.nextOnEnter);
+  });
+
+  const hasConditional = hasConditionalBlock(studyConfig.sequence);
+  const hasConditionalInsideRestrictedOrderAncestor = hasConditionalBlockInsideRestrictedOrderAncestor(
+    studyConfig.sequence,
+  );
+
+  if (hasConditional && hasConditionalInsideRestrictedOrderAncestor) {
+    errors.push({
+      message: 'Conditional URL parameter assignment cannot be combined with random or latinSquare sequence ordering',
+      instancePath: '/sequence/',
+      params: { action: 'Use fixed ordering when using conditional blocks, or remove conditional blocks' },
+      category: 'sequence-validation',
+    });
+  }
+
+  // Warn if deployment defaults are left in place outside known ReVISit/local hosts.
+  const hostname = getCurrentHostname();
+  if (studyConfig.uiConfig.contactEmail === DEFAULT_CONTACT_EMAIL && !shouldSuppressDefaultDeploymentWarnings(hostname)) {
+    warnings.push({
+      message: `The contact email is set to the default value \`${DEFAULT_CONTACT_EMAIL}\`. Please update it to your own email address.`,
+      instancePath: '/uiConfig/contactEmail',
+      params: { action: 'Update the contactEmail field in uiConfig to your own email address' },
+      category: 'default-contact-email',
+    });
+  }
+  if (shouldWarnForDefaultFirebaseConfig({ hostname })) {
+    warnings.push({
+      message: DEFAULT_FIREBASE_WARNING_MESSAGE,
+      instancePath: 'environment/VITE_FIREBASE_CONFIG',
+      params: { action: DEFAULT_FIREBASE_WARNING_ACTION },
+      category: 'default-firebase-config',
+    });
+  }
+  if (shouldWarnForDefaultSupabaseConfig({ hostname })) {
+    warnings.push({
+      message: DEFAULT_SUPABASE_WARNING_MESSAGE,
+      instancePath: 'environment/VITE_SUPABASE_URL',
+      params: { action: DEFAULT_SUPABASE_WARNING_ACTION },
+      category: 'default-supabase-config',
+    });
+  }
+
+  // Verify components are well defined
+  Object.entries(studyConfig.components)
+    .forEach(([componentName, component]) => {
+      const isImportedLibraryComponent = componentName.startsWith('$') && componentName.includes('.components.');
+
+      // Verify baseComponent is defined in baseComponents object
+      if (isInheritedComponent(component) && !studyConfig.baseComponents?.[component.baseComponent]) {
+        errors.push({
+          message: `Base component \`${component.baseComponent}\` is not defined in baseComponents object`,
+          instancePath: '/baseComponents/',
+          params: { action: 'Add the base component to the baseComponents object' },
+          category: 'undefined-base-component',
+        });
+      }
+
+      const baseComponent = isInheritedComponent(component)
+        ? studyConfig.baseComponents?.[component.baseComponent]
+        : undefined;
+      const resolvedComponent: Partial<IndividualComponent> = {
+        ...(baseComponent || {}),
+        ...component,
+      };
+
+      const visibilityComponent = studyComponentToIndividualComponent(component, studyConfig);
+      const visibilityResponses = visibilityComponent.response ?? [];
+      const responseIndices = new Map(visibilityResponses.map((response, index) => [response.id, index]));
+      visibilityResponses.forEach((response, index) => {
+        responseValueKeys(response).slice(1).forEach((key) => {
+          const conflictingIndex = responseIndices.get(key);
+          if (conflictingIndex === undefined) return;
+          errors.push({
+            message: `Response ID "${key}" conflicts with an auxiliary answer key for response "${response.id}"`,
+            instancePath: `/components/${componentName}/response/${conflictingIndex}/id`,
+            params: { action: 'Rename the conflicting response ID or disable the option that generates the auxiliary key' },
+            category: 'invalid-config',
+          });
+        });
+        if (!response.visibleIf || response.visibleIf.globalVariable !== undefined) return;
+        const condition = response.visibleIf;
+        const controller = visibilityResponses.find((candidate) => candidate.id === response.visibleIf?.responseId);
+        let message: string | undefined;
+        let action = 'Reference a supported response in this component without creating a cycle';
+        if (!visibilityConditionValidate(response.visibleIf)) message = 'visibleIf must specify a valid comparison and value';
+        else if (!controller) message = 'visibleIf must reference a response in the same component';
+        else if (!visibilityControllerTypes.has(controller.type)) message = `visibleIf cannot use a ${controller.type} response as its controller`;
+        else {
+          const isMultiselect = controller.type === 'dropdown'
+            && ((controller.minSelections ?? 0) >= 1 || (controller.maxSelections ?? 0) > 1);
+          if (condition.comparison === 'equals' || condition.comparison === 'doesNotEqual') {
+            const expectsList = controller.type === 'checkbox' || isMultiselect;
+            const expectedType = expectsList ? 'string[]' : controller.type === 'numerical' ? 'number' : 'string';
+            const compatible = expectsList
+              ? Array.isArray(condition.value)
+              : controller.type === 'numerical' ? typeof condition.value === 'number' : typeof condition.value === 'string';
+            if (!compatible) {
+              message = `visibleIf ${condition.comparison} requires a ${expectedType} value for this controller`;
+              action = 'Use a comparison value with the same type as the controlling response answer';
+            }
+          } else if (['lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual'].includes(condition.comparison)
+            && controller.type !== 'numerical') {
+            message = `visibleIf ${condition.comparison} requires a numerical controller`;
+            action = 'Reference a numerical response or use a comparison supported by the controller';
+          } else if (['contains', 'doesNotContain', 'matchesRegex'].includes(condition.comparison)) {
+            if (controller.type === 'numerical' || controller.type === 'checkbox' || isMultiselect) {
+              message = `visibleIf ${condition.comparison} requires a controller with a single string value`;
+              action = 'Reference a shortText, date, radio, buttons, or single-select dropdown response';
+            } else if (condition.comparison === 'matchesRegex') {
+              try {
+                RegExp(condition.value);
+              } catch {
+                message = 'visibleIf matchesRegex value must be a valid regular expression';
+                action = 'Fix the regular expression pattern';
+              }
+            }
+          } else if (condition.comparison === 'isCorrect'
+            && !visibilityComponent.correctAnswer?.some((answer) => answer.id === condition.responseId)
+            && !hasResponseScorer(controller)) {
+            message = `visibleIf isCorrect requires a correctAnswer for response "${condition.responseId}"`;
+            action = 'Define a correctAnswer or a response scorer for the controlling response in this component';
+          }
+          const seen = new Set([response.id]);
+          let current: typeof controller | undefined = controller;
+          while (current && !message) {
+            if (seen.has(current.id)) {
+              message = 'visibleIf cannot contain self references or cyclic dependencies';
+              break;
+            }
+            seen.add(current.id);
+            const nextId: string | undefined = current.visibleIf?.responseId;
+            current = visibilityResponses.find((candidate) => candidate.id === nextId);
+          }
+        }
+        if (message) {
+          errors.push({
+            message,
+            instancePath: `/components/${componentName}/response/${index}/visibleIf`,
+            params: { action },
+            category: 'invalid-config',
+          });
+        }
+      });
+
+      const isInheritedFromImportedLibrary = isInheritedComponent(component)
+        && component.baseComponent.startsWith('$')
+        && component.baseComponent.includes('.components.');
+
+      const isUsingSidebarInOwnComponent = component.instructionLocation === 'sidebar'
+        || component.nextButtonLocation === 'sidebar'
+        || component.response?.some((r) => 'location' in r && r.location === 'sidebar');
+      const hasOwnSidebarOverride = component.withSidebar !== undefined;
+
+      // Verify sidebar is enabled if component uses sidebar locations
+      // Imported library components are validated in verifyLibraryUsage to avoid duplicate warnings.
+      if (!isImportedLibraryComponent && (!isInheritedFromImportedLibrary || isUsingSidebarInOwnComponent || hasOwnSidebarOverride)) {
+        const sidebarDisabled = !(resolvedComponent.withSidebar ?? studyConfig.uiConfig.withSidebar);
+        const isUsingSidebar = resolvedComponent.instructionLocation === 'sidebar'
+          || resolvedComponent.nextButtonLocation === 'sidebar'
+          || resolvedComponent.response?.some((r) => 'location' in r && r.location === 'sidebar');
+
+        if (sidebarDisabled && isUsingSidebar) {
+          const instancePath = component.withSidebar === false
+            ? '/components/'
+            : baseComponent?.withSidebar === false
+              ? '/baseComponents/'
+              : '/uiConfig/';
+          warnings.push({
+            message: `Component \`${componentName}\` uses sidebar locations but sidebar is disabled`,
+            instancePath,
+            params: { action: 'Enable the sidebar or move the location to belowStimulus or aboveStimulus' },
+            category: 'disabled-sidebar',
+          });
+        }
+      }
+    });
+
+  const usedComponents = getSequenceFlatMapWithInterruptions(studyConfig.sequence);
+
+  if (studyConfig.uiConfig.withSidebar && !Object.values(studyConfig.components).some((component) => {
+    const resolved = studyComponentToIndividualComponent(component, studyConfig);
+    return (resolved.withSidebar ?? studyConfig.uiConfig.withSidebar)
+      && ((resolved.instruction && (resolved.instructionLocation ?? studyConfig.uiConfig.instructionLocation ?? 'sidebar') === 'sidebar')
+        || (resolved.nextButtonLocation ?? studyConfig.uiConfig.nextButtonLocation) === 'sidebar'
+        || resolved.response?.some((response) => 'location' in response && response.location === 'sidebar'));
+  })) {
+    warnings.push({
+      message: 'The sidebar is enabled but no component puts content in it',
+      instancePath: '/uiConfig/withSidebar',
+      params: { action: 'Set withSidebar to false, or add sidebar instructions, responses, or navigation buttons' },
+      category: 'empty-sidebar',
+    });
+  }
+
+  // Verify sequence is well defined
+  usedComponents.forEach((component) => {
+    // Verify component is defined in components object
+    if (!studyConfig.components[component]) {
+      if (studyConfig.baseComponents?.[component]) {
+        errors.push({
+          message: `Component \`${component}\` is a base component and cannot be used in the sequence`,
+          instancePath: '/sequence/',
+          params: { action: 'Remove the base component from the sequence' },
+          category: 'sequence-validation',
+        });
+      } else {
+        errors.push({
+          message: `Component \`${component}\` is not defined in components object`,
+          instancePath: '/components/',
+          params: { action: 'Add the component to the components object' },
+          category: 'undefined-component',
+        });
+      }
+    }
+  });
+
+  // Warnings for components that are defined but not used in the sequence
+  Object.keys(studyConfig.components)
+    .filter((componentName) => (
+      !usedComponents.includes(componentName)
+      && !componentName.includes('.sequences.')
+      && !componentName.includes('.components.')
+    ))
+    .forEach((componentName) => {
+      warnings.push({
+        message: `Component \`${componentName}\` is defined in components object but not used deterministically in the sequence`,
+        instancePath: '/components/',
+        params: { action: 'Remove the component from the components object or add it to the sequence' },
+        category: 'unused-component',
+      });
+    });
+
+  // Verify skip blocks are well defined
+  const missingSkipTargets: string[] = [];
+  verifyStudySkip(studyConfig.sequence, missingSkipTargets, errors, warnings);
+  missingSkipTargets.forEach((skipTarget) => {
+    errors.push({
+      message: `Skip target \`${skipTarget}\` does not occur after the skip block it is used in`,
+      instancePath: '/sequence/',
+      params: { action: 'Add the target to the sequence after the skip block' },
+      category: 'skip-validation',
+    });
+  });
+
+  // Verify that paths to React components exist under the correct base directory
+
+  for (const [name, component] of Object.entries(studyConfig.baseComponents ?? {})) {
+    verifyReactComponent(`/baseComponents/${name}/path`, component, errors);
+    verifyWebsiteComponent(`/baseComponents/${name}/path`, component, warnings);
+  }
+
+  for (const [name, component] of Object.entries(studyConfig.components ?? {})) {
+    const mergedComponent = studyComponentToIndividualComponent(component, studyConfig);
+    verifyWebsiteComponent(`/components/${name}/path`, mergedComponent, warnings);
+    if ('path' in component) {
+      verifyReactComponent(`/components/${name}/path`, mergedComponent, errors);
+    } else {
+      // Path is inherited and will be verified on the base component
+    }
+  }
+
+  return { errors, warnings };
+}
+
+export async function parseStudyConfig(fileData: string): Promise<ParsedConfig<StudyConfig>> {
+  let validatedData = false;
+  let data: StudyConfig | undefined;
+
+  try {
+    // Try JSON parse first
+    data = JSON.parse(fileData);
+    validatedData = studyValidate(data) as boolean;
+  } catch {
+    // Try yaml parse
+    try {
+      data = parseDocument(fileData).toJSON() as StudyConfig;
+      validatedData = studyValidate(data) as boolean;
+    } catch (e) {
+      console.error('Error parsing study config file:', e);
+      validatedData = false;
+    }
+  }
+
+  let errors: ParserErrorWarning[] = (studyValidate.errors || []).map((e) => ({
+    message: e.message || 'Validation error',
+    instancePath: (e.instancePath as string) || '',
+    params: (e.params as object) || {},
+    category: 'invalid-config',
+  }));
+  let warnings: ParserErrorWarning[] = [];
+
+  // We can only run our custom validator if the schema validation passes
+  if (validatedData && data) {
+    const importedLibraries = data.importedLibraries || [];
+    const importedLibrariesData = await loadLibrariesParseNamespace(importedLibraries, errors, warnings);
+
+    // Add the imported libraries to the components object and baseComponents object
+    Object.values(importedLibrariesData).forEach((libraryData) => {
+      data.components = { ...data.components, ...libraryData.components };
+      data.baseComponents = { ...data.baseComponents, ...libraryData.components };
+    });
+
+    // Expand .co. macro to .components. in baseComponent references (after merging library components)
+    Object.values(data.components).forEach((component) => {
+      if (component && typeof component === 'object' && 'baseComponent' in component && typeof component.baseComponent === 'string' && component.baseComponent.includes('.co.')) {
+        component.baseComponent = component.baseComponent.replace('.co.', '.components.');
+      }
+    });
+
+    // Expand the imported sequences to use the correct component names
+    data.sequence = expandLibrarySequences(data.sequence, importedLibrariesData, errors);
+    validateBetweenSubjects(data, warnings, errors);
+    const compiledFactors = compileFactorBlocks(data.sequence, data, errors, warnings);
+    data.sequence = compiledFactors.sequence;
+    data.components = { ...data.components, ...compiledFactors.components };
+
+    const { errors: parserErrors, warnings: parserWarnings } = verifyStudyConfig(data, importedLibrariesData);
+    errors = [...errors, ...parserErrors];
+    warnings = [...warnings, ...parserWarnings];
+  } else {
+    errors = [...errors, {
+      message: 'There was an issue validating your config file',
+      instancePath: 'root',
+      params: { action: 'Fix the errors in your file or make sure the global config references the right file path' },
+      category: 'invalid-config',
+    }];
+  }
+
+  return { ...data as StudyConfig, errors, warnings };
+}

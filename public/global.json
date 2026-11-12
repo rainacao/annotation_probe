@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v3.0.0/src/parser/GlobalConfigSchema.json",
+  "configsList": [
+    "vlat-graphs"
+  ],
+  "configs": {
+    "vlat-graphs": {
+      "path": "annotation-probe/config.json"
+    }
+  }
+}

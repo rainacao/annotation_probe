@@ -12,7 +12,17 @@ This repository runs a reVISit study that presents the 12 Mini-VLAT items (Pande
 
 Use Yarn, not npm, like upstream reVISit. `yarn.lock` is the only lockfile; don't commit a `package-lock.json`.
 
-Responses are stored in the browser's local storage during the study and automatically downloaded as participant JSON when the study is completed. This setup is suitable for local testing; configure a supported cloud storage engine before using a hosted study to collect responses from multiple participants.
+Responses are stored in the browser's local storage (`VITE_STORAGE_ENGINE="localStorage"`) during the study and automatically downloaded once as participant JSON when the study is completed.
+
+## Collecting and analyzing data
+
+Data is collected as one participant JSON file per session, from each device.
+
+- **Run on a tablet:** for testing, `yarn serve` on the Mac and open `http://<mac-ip>:8080/vlat-graphs` from a device on the same network (`ipconfig getifaddr en0`). For sessions, `yarn build` and host `dist/` statically, setting `VITE_BASE_PATH` if it is served under a subpath.
+- **Get the files:** each session's file is auto-downloaded on the device; on iPad Safari it goes to Files › Downloads. Copy all files into one folder; subfolders per device are fine. reVISit's Analyze & Manage only sees participants stored in that same browser, so it is not used to combine devices.
+- **Combine:** `uv run scripts/combine_participants.py <folder> --out <output-folder>` (standard library only). It writes `participants.csv`, `trials.csv` (one row per participant × item: timing, answer, correctness, Skip, fixation baseline including `baseline_actual_ms`, NASA-TLX scales and raw mean, mark counts), `annotation_marks.csv` (one row per mark: start/end, status kept/undone/cleared), and `annotation_points.csv` (one row per point: `t`, image-fraction `x`/`y`, `in_image`, viewport `screen_x`/`screen_y`). Non-participant JSON is skipped with a warning. When one participant appears in several files, the copy with the most answers is kept.
+- **QC:** compare `baseline_actual_ms` with `baseline_duration_ms`. Browsers delay timers in background tabs, and two parallel headless test runs once produced a 41.8 s baseline at the same moment (cause not determined; solo runs were 5001–5003 ms).
+- **Tests:** `uv run python -m unittest scripts/test_combine_participants.py`. Lint with `uvx ruff check scripts/`; type check with `env -u VIRTUAL_ENV uvx ty check --python "$(uv python find)" scripts/*.py` (the shell's `VIRTUAL_ENV` points at a broken miniconda path).
 
 ## Study configuration
 

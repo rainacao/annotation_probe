@@ -39,3 +39,6 @@ supabase/volumes/
 
 coverage/
 recordings/
+
+# Python
+__pycache__/

@@ -29,6 +29,7 @@ await page.waitForTimeout(500);
 const ib = await page.locator('.annotation-image-stage img').boundingBox();
 await page.screenshot({ path: `${out}/2-graph.png` });
 console.log('main bg', bg);
+console.log('graph image', await page.locator('.annotation-image-stage img').getAttribute('src'));
 console.log('cross centre', cb.x + cb.width / 2, cb.y + cb.height / 2);
 console.log('image centre', ib.x + ib.width / 2, ib.y + ib.height / 2);
 console.log('cross on screen ms (expected durationMs)', await page.evaluate(() => window.crossTimes));
@@ -45,6 +46,6 @@ for (let i = 0; i < await sliders.count(); i += 1) {
 }
 await page.getByRole('button', { name: 'Next', exact: true }).click();
 await page.locator('.fixation-cross').waitFor({ timeout: 10000 });
-console.log('second fixation reached', page.url());
+console.log('second fixation preloads', await page.locator('.annotation-image-stage img').getAttribute('src'));
 console.log('page errors', errors);
 await browser.close();

@@ -22,6 +22,22 @@
     "stylesheetPath": "annotation-probe/study.css",
     "nextButtonLocation": "sidebar"
   },
+  "factors": {
+    "graph": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ]
+  },
   "baseComponents": {
     "fixation": {
       "type": "react-component",
@@ -41,7 +57,11 @@
           "required": true
         }
       ],
-      "stylesheetPath": "annotation-probe/fixation.css"
+      "stylesheetPath": "annotation-probe/fixation.css",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT{{graph}}.png",
+        "durationMs": 5000
+      }
     },
     "graph": {
       "type": "react-component",
@@ -67,7 +87,10 @@
           "location": "sidebar",
           "required": true
         }
-      ]
+      ],
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT{{graph}}.png"
+      }
     },
     "nasa-tlx": {
       "type": "questionnaire",
@@ -200,309 +223,18 @@
       ]
     }
   },
-  "components": {
-    "fixation-01": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT1.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-01": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT1.png"
-      }
-    },
-    "tlx-01": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-02": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT2.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-02": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT2.png"
-      }
-    },
-    "tlx-02": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-03": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT3.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-03": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT3.png"
-      }
-    },
-    "tlx-03": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-04": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT4.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-04": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT4.png"
-      }
-    },
-    "tlx-04": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-05": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT5.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-05": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT5.png"
-      }
-    },
-    "tlx-05": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-06": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT6.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-06": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT6.png"
-      }
-    },
-    "tlx-06": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-07": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT7.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-07": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT7.png"
-      }
-    },
-    "tlx-07": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-08": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT8.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-08": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT8.png"
-      }
-    },
-    "tlx-08": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-09": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT9.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-09": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT9.png"
-      }
-    },
-    "tlx-09": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-10": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT10.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-10": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT10.png"
-      }
-    },
-    "tlx-10": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-11": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT11.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-11": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT11.png"
-      }
-    },
-    "tlx-11": {
-      "baseComponent": "nasa-tlx"
-    },
-    "fixation-12": {
-      "baseComponent": "fixation",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT12.png",
-        "durationMs": 3000
-      }
-    },
-    "graph-12": {
-      "baseComponent": "graph",
-      "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT12.png"
-      }
-    },
-    "tlx-12": {
-      "baseComponent": "nasa-tlx"
-    }
-  },
+  "components": {},
   "sequence": {
     "order": "fixed",
     "components": [
       {
-        "id": "trial-01",
-        "order": "fixed",
+        "type": "factor",
+        "id": "trials",
+        "factor": "graph",
         "components": [
-          "fixation-01",
-          "graph-01",
-          "tlx-01"
-        ]
-      },
-      {
-        "id": "trial-02",
-        "order": "fixed",
-        "components": [
-          "fixation-02",
-          "graph-02",
-          "tlx-02"
-        ]
-      },
-      {
-        "id": "trial-03",
-        "order": "fixed",
-        "components": [
-          "fixation-03",
-          "graph-03",
-          "tlx-03"
-        ]
-      },
-      {
-        "id": "trial-04",
-        "order": "fixed",
-        "components": [
-          "fixation-04",
-          "graph-04",
-          "tlx-04"
-        ]
-      },
-      {
-        "id": "trial-05",
-        "order": "fixed",
-        "components": [
-          "fixation-05",
-          "graph-05",
-          "tlx-05"
-        ]
-      },
-      {
-        "id": "trial-06",
-        "order": "fixed",
-        "components": [
-          "fixation-06",
-          "graph-06",
-          "tlx-06"
-        ]
-      },
-      {
-        "id": "trial-07",
-        "order": "fixed",
-        "components": [
-          "fixation-07",
-          "graph-07",
-          "tlx-07"
-        ]
-      },
-      {
-        "id": "trial-08",
-        "order": "fixed",
-        "components": [
-          "fixation-08",
-          "graph-08",
-          "tlx-08"
-        ]
-      },
-      {
-        "id": "trial-09",
-        "order": "fixed",
-        "components": [
-          "fixation-09",
-          "graph-09",
-          "tlx-09"
-        ]
-      },
-      {
-        "id": "trial-10",
-        "order": "fixed",
-        "components": [
-          "fixation-10",
-          "graph-10",
-          "tlx-10"
-        ]
-      },
-      {
-        "id": "trial-11",
-        "order": "fixed",
-        "components": [
-          "fixation-11",
-          "graph-11",
-          "tlx-11"
-        ]
-      },
-      {
-        "id": "trial-12",
-        "order": "fixed",
-        "components": [
-          "fixation-12",
-          "graph-12",
-          "tlx-12"
+          "fixation",
+          "graph",
+          "nasa-tlx"
         ]
       }
     ]

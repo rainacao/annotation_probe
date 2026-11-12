@@ -57,7 +57,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "",
           "location": "sidebar",
           "required": true,
           "options": []
@@ -71,7 +71,6 @@
           "required": false
         }
       ],
-      "instructionLocation": "sidebar",
       "description": "Mini-VLAT item with pointer annotation; per-item question, options, and answer key come from the component."
     },
     "nasa-tlx": {
@@ -217,7 +216,6 @@
       "meta": {
         "chartType": "treemap"
       },
-      "instruction": "eBay is nested in the Software category.",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/TreeMap.png"
       },
@@ -225,7 +223,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "eBay is nested in the Software category.",
           "options": [
             "True",
             "False",
@@ -254,7 +252,6 @@
       "meta": {
         "chartType": "stackedbar100"
       },
-      "instruction": "Which country has the lowest proportion of Gold medals?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Stacked100.png"
       },
@@ -262,7 +259,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "Which country has the lowest proportion of Gold medals?",
           "options": [
             "USA",
             "Great Britain",
@@ -293,7 +290,6 @@
       "meta": {
         "chartType": "histogram"
       },
-      "instruction": "What distance have customers traveled in the taxi the most?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Histogram.png"
       },
@@ -301,7 +297,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What distance have customers traveled in the taxi the most?",
           "options": [
             "50-70km",
             "30-40km",
@@ -332,7 +328,6 @@
       "meta": {
         "chartType": "choropleth"
       },
-      "instruction": "In 2020, the unemployment rate for Washington (WA) was higher than that of Wisconsin (WI)?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Choropleth.png"
       },
@@ -340,7 +335,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "In 2020, the unemployment rate for Washington (WA) was higher than that of Wisconsin (WI)?",
           "options": [
             "True",
             "False",
@@ -369,7 +364,6 @@
       "meta": {
         "chartType": "piechart"
       },
-      "instruction": "What is the approximate global smartphone market share of Samsung?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/PieChart.png"
       },
@@ -377,7 +371,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What is the approximate global smartphone market share of Samsung?",
           "options": [
             "17.6%",
             "25.3%",
@@ -408,7 +402,6 @@
       "meta": {
         "chartType": "bubblechart"
       },
-      "instruction": "Which city's metro system has the largest number of stations?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BubbleChart.png"
       },
@@ -416,7 +409,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "Which city's metro system has the largest number of stations?",
           "options": [
             "Beijing",
             "Shanghai",
@@ -447,7 +440,6 @@
       "meta": {
         "chartType": "stackedbar"
       },
-      "instruction": "What is the cost of peanuts in Seoul?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedBar.png"
       },
@@ -455,7 +447,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What is the cost of peanuts in Seoul?",
           "options": [
             "$5.2",
             "$6.1",
@@ -486,7 +478,6 @@
       "meta": {
         "chartType": "linechart"
       },
-      "instruction": "What was the price of a barrel of oil in February 2020?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/LineChart.png"
       },
@@ -494,7 +485,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What was the price of a barrel of oil in February 2020?",
           "options": [
             "$50.54",
             "$47.02",
@@ -525,7 +516,6 @@
       "meta": {
         "chartType": "barchart"
       },
-      "instruction": "What is the average internet speed in Japan?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BarChart.png"
       },
@@ -533,7 +523,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What is the average internet speed in Japan?",
           "options": [
             "42.30 Mbps",
             "40.51 Mbps",
@@ -564,7 +554,6 @@
       "meta": {
         "chartType": "areachart"
       },
-      "instruction": "What was the average price of a pound of coffee in October 2019?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/AreaChart.png"
       },
@@ -572,7 +561,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What was the average price of a pound of coffee in October 2019?",
           "options": [
             "0.71",
             "0.90",
@@ -603,7 +592,6 @@
       "meta": {
         "chartType": "stackedarea"
       },
-      "instruction": "What was the ratio of girls named \"Isla\" to girls named \"Amelia\" in 2012 in the UK?",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedArea.png"
       },
@@ -611,7 +599,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "What was the ratio of girls named \"Isla\" to girls named \"Amelia\" in 2012 in the UK?",
           "options": [
             "1 to 1",
             "1 to 2",
@@ -642,7 +630,6 @@
       "meta": {
         "chartType": "scatterplot"
       },
-      "instruction": "There is a negative relationship between the height and the weight of the 85 males.",
       "parameters": {
         "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Scatterplot.png"
       },
@@ -650,7 +637,7 @@
         {
           "id": "answer",
           "type": "radio",
-          "prompt": "Your answer",
+          "prompt": "There is a negative relationship between the height and the weight of the 85 males.",
           "options": [
             "True",
             "False",

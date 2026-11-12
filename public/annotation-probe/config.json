@@ -92,14 +92,15 @@
           "spacing": 5,
           "options": [
             {
-              "label": "Very Low",
+              "label": "Low",
               "value": 0
             },
             {
-              "label": "Very High",
+              "label": "High",
               "value": 100
             }
-          ]
+          ],
+          "default": 0
         },
         {
           "id": "physical-demand",
@@ -112,14 +113,15 @@
           "spacing": 5,
           "options": [
             {
-              "label": "Very Low",
+              "label": "Low",
               "value": 0
             },
             {
-              "label": "Very High",
+              "label": "High",
               "value": 100
             }
-          ]
+          ],
+          "default": 0
         },
         {
           "id": "temporal-demand",
@@ -132,14 +134,15 @@
           "spacing": 5,
           "options": [
             {
-              "label": "Very Low",
+              "label": "Low",
               "value": 0
             },
             {
-              "label": "Very High",
+              "label": "High",
               "value": 100
             }
-          ]
+          ],
+          "default": 0
         },
         {
           "id": "performance",
@@ -152,14 +155,15 @@
           "spacing": 5,
           "options": [
             {
-              "label": "Perfect",
+              "label": "Good",
               "value": 0
             },
             {
-              "label": "Failure",
+              "label": "Poor",
               "value": 100
             }
-          ]
+          ],
+          "default": 0
         },
         {
           "id": "effort",
@@ -172,14 +176,15 @@
           "spacing": 5,
           "options": [
             {
-              "label": "Very Low",
+              "label": "Low",
               "value": 0
             },
             {
-              "label": "Very High",
+              "label": "High",
               "value": 100
             }
-          ]
+          ],
+          "default": 0
         },
         {
           "id": "frustration",
@@ -192,14 +197,15 @@
           "spacing": 5,
           "options": [
             {
-              "label": "Very Low",
+              "label": "Low",
               "value": 0
             },
             {
-              "label": "Very High",
+              "label": "High",
               "value": 100
             }
-          ]
+          ],
+          "default": 0
         }
       ]
     }

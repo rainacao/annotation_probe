@@ -63,9 +63,9 @@
           "options": []
         },
         {
-          "id": "annotation",
+          "id": "annotationEvents",
           "type": "reactive",
-          "prompt": "Drawing annotations",
+          "prompt": "Annotation events",
           "location": "sidebar",
           "hidden": true,
           "required": false

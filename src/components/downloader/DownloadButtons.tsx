@@ -1,0 +1,202 @@
+import {
+  Button, Group, Tooltip,
+} from '@mantine/core';
+import {
+  IconDatabaseExport, IconDeviceDesktopDown, IconDownload, IconMusicDown, IconTableExport,
+} from '@tabler/icons-react';
+import { useState } from 'react';
+import { useDisclosure } from '@mantine/hooks';
+import { DownloadTidy, download } from './DownloadTidy';
+import { ParticipantDataWithStatus } from '../../storage/types';
+import { useStorageEngine } from '../../storage/storageEngineHooks';
+import { downloadParticipantsAudioZip, downloadParticipantsProvenanceZip, downloadParticipantsRecordingsZip } from '../../utils/handleDownloadFiles';
+import { useAuth } from '../../store/hooks/useAuth';
+import type { StorageEngine } from '../../storage/engines/types';
+import { getParticipantQualitativeCodes } from './qualitativeCodes';
+import type { DownloadedQualitativeCodes } from './qualitativeCodes';
+
+type ParticipantDataFetcher = ParticipantDataWithStatus[] | (() => Promise<ParticipantDataWithStatus[]>);
+type ParticipantDataWithQualitativeCodes = ParticipantDataWithStatus & { qualitativeCodes: DownloadedQualitativeCodes };
+
+async function attachQualitativeCodesToParticipants(
+  participants: ParticipantDataWithStatus[],
+  storageEngine: StorageEngine | undefined,
+  authEmail: string,
+): Promise<ParticipantDataWithQualitativeCodes[]> {
+  return Promise.all(participants.map(async (participant) => {
+    const qualitativeCodes = await getParticipantQualitativeCodes(storageEngine, authEmail, participant);
+    return {
+      ...participant,
+      qualitativeCodes,
+    };
+  }));
+}
+
+export function DownloadButtons({
+  visibleParticipants, studyId, gap, fileName, hasAudio, hasScreenRecording, hasWebcamRecording,
+}: { visibleParticipants: ParticipantDataFetcher; studyId: string, gap?: string, fileName?: string | null; hasAudio?: boolean; hasScreenRecording?: boolean; hasWebcamRecording?: boolean; }) {
+  const [openDownload, { open, close }] = useDisclosure(false);
+  const [participants, setParticipants] = useState<ParticipantDataWithStatus[]>([]);
+  const [loadingProvenance, setLoadingProvenance] = useState(false);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+  const [loadingRecordings, setLoadingRecordings] = useState(false);
+  const { storageEngine } = useStorageEngine();
+  const auth = useAuth();
+
+  const fetchParticipants = async () => {
+    const currParticipants = typeof visibleParticipants === 'function' ? await visibleParticipants() : visibleParticipants;
+    return currParticipants;
+  };
+
+  const handleDownloadJSON = async () => {
+    const currParticipants = await fetchParticipants();
+    const participantsWithQualitativeCodes = await attachQualitativeCodesToParticipants(
+      currParticipants,
+      storageEngine,
+      auth.user.user?.email || 'temp',
+    );
+    const currFileName = fileName ? `${fileName}.json` : `${studyId}_all.json`;
+    download(JSON.stringify(participantsWithQualitativeCodes, null, 2), currFileName);
+  };
+
+  const handleOpenTidy = async () => {
+    const currParticipants = await fetchParticipants();
+    setParticipants(currParticipants);
+    open();
+  };
+
+  const handleDownloadAudio = async () => {
+    setLoadingAudio(true);
+
+    try {
+      const currParticipants = await fetchParticipants();
+      if (!storageEngine) return;
+      await downloadParticipantsAudioZip({
+        storageEngine,
+        participants: currParticipants,
+        studyId,
+        fileName,
+      });
+    } finally {
+      setLoadingAudio(false);
+    }
+  };
+
+  const handleDownloadProvenance = async () => {
+    setLoadingProvenance(true);
+
+    try {
+      const currParticipants = await fetchParticipants();
+      if (!storageEngine) return;
+      await downloadParticipantsProvenanceZip({
+        storageEngine,
+        participants: currParticipants,
+        studyId,
+        fileName,
+      });
+    } finally {
+      setLoadingProvenance(false);
+    }
+  };
+
+  const handleDownloadRecordings = async () => {
+    setLoadingRecordings(true);
+
+    try {
+      const currParticipants = await fetchParticipants();
+      if (!storageEngine) return;
+      await downloadParticipantsRecordingsZip({
+        storageEngine,
+        participants: currParticipants,
+        studyId,
+        includeScreen: !!hasScreenRecording,
+        includeWebcam: !!hasWebcamRecording,
+        fileName,
+      });
+    } finally {
+      setLoadingRecordings(false);
+    }
+  };
+
+  const tooltipText = typeof visibleParticipants !== 'function' ? `Download ${visibleParticipants.length} participants` : 'Download participants data';
+  const recordingsLabel = hasScreenRecording && hasWebcamRecording
+    ? 'screen and webcam recordings'
+    : hasWebcamRecording ? 'webcam recordings' : 'screen recordings';
+
+  return (
+    <>
+      <Group style={{ gap }} wrap="nowrap">
+        <Tooltip label={`${tooltipText} as JSON`}>
+          <Button
+            variant="light"
+            disabled={visibleParticipants.length === 0 && typeof visibleParticipants !== 'function'}
+            onClick={handleDownloadJSON}
+            px={4}
+          >
+            <IconDatabaseExport />
+          </Button>
+        </Tooltip>
+        <Tooltip label={`${tooltipText} as tidy CSV`}>
+          <Button
+            variant="light"
+            disabled={visibleParticipants.length === 0 && typeof visibleParticipants !== 'function'}
+            onClick={handleOpenTidy}
+            px={4}
+          >
+            <IconTableExport />
+          </Button>
+        </Tooltip>
+        <Tooltip label={`${tooltipText} provenance as ZIP`}>
+          <Button
+            variant="light"
+            disabled={visibleParticipants.length === 0 && typeof visibleParticipants !== 'function'}
+            onClick={handleDownloadProvenance}
+            px={4}
+            loading={loadingProvenance}
+          >
+            <IconDownload />
+          </Button>
+        </Tooltip>
+        {hasAudio && (
+          <Tooltip label={`${tooltipText} audio & transcripts as ZIP`}>
+            <Button
+              variant="light"
+              disabled={visibleParticipants.length === 0 && typeof visibleParticipants !== 'function'}
+              onClick={handleDownloadAudio}
+              px={4}
+              loading={loadingAudio}
+            >
+              <IconMusicDown />
+            </Button>
+          </Tooltip>
+        )}
+
+        {(hasScreenRecording || hasWebcamRecording) && (
+          <Tooltip label={`${tooltipText} ${recordingsLabel} ZIP`}>
+            <Button
+              variant="light"
+              disabled={visibleParticipants.length === 0 && typeof visibleParticipants !== 'function'}
+              onClick={handleDownloadRecordings}
+              px={4}
+              loading={loadingRecordings}
+            >
+              <IconDeviceDesktopDown />
+            </Button>
+          </Tooltip>
+        )}
+
+      </Group>
+
+      {openDownload && participants.length > 0 && (
+        <DownloadTidy
+          opened={openDownload}
+          close={close}
+          filename={fileName ? `${fileName}_tidy.csv` : `${studyId}_all_tidy.csv`}
+          data={participants}
+          studyId={studyId}
+          hasAudio={hasAudio}
+        />
+      )}
+    </>
+  );
+}

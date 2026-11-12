@@ -54,8 +54,6 @@
     .tool-button:hover, .nav-button:hover:not(:disabled), .icon-button:hover:not(:disabled), .fullscreen-button:hover { background: #f4f3ed; }
     .tool-button[aria-pressed="true"] { border-color: #d7d4be; background: #f8f4d8; }
     .color-swatch { width: 12px; height: 12px; border: 1px solid rgba(0,0,0,.2); border-radius: 50%; }
-    .color-swatch.red { background: var(--red); }
-    .color-swatch.blue { background: var(--blue); }
     .color-swatch.black { background: #111111; }
     .eraser-symbol { width: 13px; height: 10px; border: 1px solid #686b63; transform: rotate(-42deg); }
     .toolbar-divider { width: 1px; height: 30px; background: var(--line); }
@@ -109,13 +107,8 @@
       <button class="nav-button" id="nextButton" type="button" aria-label="Next image" title="Next image" disabled>&rsaquo;</button>
     </div>
     <div class="tools" id="tools" role="toolbar" aria-label="Drawing tools">
-      <div class="tool-set" role="group" aria-label="Pen color">
-        <button class="tool-button" type="button" data-color="red" aria-pressed="true" title="Red pen"><span class="color-swatch red" aria-hidden="true"></span><span>Red</span></button>
-        <button class="tool-button" type="button" data-color="blue" aria-pressed="false" title="Blue pen"><span class="color-swatch blue" aria-hidden="true"></span><span>Blue</span></button>
-        <button class="tool-button" type="button" data-color="black" aria-pressed="false" title="Black pen"><span class="color-swatch black" aria-hidden="true"></span><span>Black</span></button>
-      </div>
-      <div class="tool-set" role="group" aria-label="Ink tool">
-        <button class="tool-button" id="penButton" type="button" aria-pressed="true" title="Draw with pen"><span aria-hidden="true">✎</span><span>Pen</span></button>
+      <div class="tool-set" role="group" aria-label="Drawing mode">
+        <button class="tool-button" id="penButton" type="button" aria-pressed="true" title="Draw with black pen"><span class="color-swatch black" aria-hidden="true"></span><span>Pen</span></button>
         <button class="tool-button" id="eraserButton" type="button" aria-pressed="false" title="Erase annotations"><span class="eraser-symbol" aria-hidden="true"></span><span>Erase</span></button>
       </div>
       <button class="icon-button" id="undoButton" type="button" aria-label="Undo last stroke" title="Undo last stroke" disabled>&#8630;</button>
@@ -134,7 +127,7 @@
       const items = [];
       let activeIndex = -1;
       let activeTool = 'pen';
-      let activeColor = 'red';
+      let activeColor = 'black';
       let activeSize = 'thin';
       let toolsEnabled = true;
       let activeStroke = null;
@@ -203,8 +196,6 @@
         document.querySelector('#clearButton').disabled = !item;
         document.querySelector('#tools').hidden = !toolsEnabled;
         canvas.style.pointerEvents = toolsEnabled ? 'auto' : 'none';
-        document.querySelectorAll('[data-color]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.color === activeColor)));
-        document.querySelectorAll('[data-size]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.size === activeSize)));
         document.querySelector('#penButton').setAttribute('aria-pressed', String(activeTool === 'pen'));
         document.querySelector('#eraserButton').setAttribute('aria-pressed', String(activeTool === 'eraser'));
         canvas.classList.toggle('is-eraser', activeTool === 'eraser');
@@ -343,7 +334,7 @@
             toolsEnabled = message.toolsEnabled;
             canvas.style.visibility = message.inkVisible ? 'visible' : 'hidden';
             activeTool = message.activeTool || 'pen';
-            activeColor = message.activeColor || 'red';
+            activeColor = 'black';
             activeSize = message.activeSize || 'thin';
           }
           renderCurrent();
@@ -365,18 +356,6 @@
       document.querySelector('#topNextButton').addEventListener('click', () => selectImage(activeIndex + 1));
       document.querySelector('#penButton').addEventListener('click', () => setTool('pen'));
       document.querySelector('#eraserButton').addEventListener('click', () => setTool('eraser'));
-      document.querySelectorAll('[data-color]').forEach((button) => button.addEventListener('click', () => {
-        activeColor = button.dataset.color;
-        document.querySelectorAll('[data-color]').forEach((entry) => entry.setAttribute('aria-pressed', String(entry === button)));
-        if (activeTool !== 'pen') setTool('pen');
-        send('color_change', { imageIndex: activeIndex, color: activeColor });
-      }));
-      document.querySelectorAll('[data-size]').forEach((button) => button.addEventListener('click', () => {
-        activeSize = button.dataset.size;
-        document.querySelectorAll('[data-size]').forEach((entry) => entry.setAttribute('aria-pressed', String(entry === button)));
-        if (activeTool !== 'pen') setTool('pen');
-        send('size_change', { imageIndex: activeIndex, size: activeSize });
-      }));
       document.querySelector('#undoButton').addEventListener('click', undo);
       document.querySelector('#clearButton').addEventListener('click', clearAnnotations);
       document.querySelector('#fullscreenButton').addEventListener('click', async () => {

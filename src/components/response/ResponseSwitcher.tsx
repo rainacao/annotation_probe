@@ -1,0 +1,481 @@
+import { Box, Checkbox, Divider } from '@mantine/core';
+import { useSearchParams } from 'react-router';
+import { useMemo } from 'react';
+import { GetInputPropsReturnType } from '@mantine/form/lib/types';
+import {
+  CustomResponse, IndividualComponent, JsonValue, MatrixResponse, Response, SliderResponse, StoredAnswer,
+} from '../../parser/types';
+import { CheckBoxInput } from './CheckBoxInput';
+import { CustomResponseInput } from './CustomResponseInput';
+import { DropdownInput } from './DropdownInput';
+import { DateResponseInput } from './DateInput';
+import { ReactiveInput } from './ReactiveInput';
+import { LikertInput } from './LikertInput';
+import { NumericInput } from './NumericInput';
+import { RadioInput } from './RadioInput';
+import { RankingInput } from './RankingInput';
+import { SliderInput } from './SliderInput';
+import { StringInput } from './StringInput';
+import { TextAreaInput } from './TextAreaInput';
+import { TimeResponseInput } from './TimeInput';
+import { useStudyConfig } from '../../store/hooks/useStudyConfig';
+import { MatrixInput } from './MatrixInput';
+import { ButtonsInput } from './ButtonsInput';
+import classes from './css/Checkbox.module.css';
+import './css/default-form.css';
+import { useIsAnalysis } from '../../store/hooks/useIsAnalysis';
+import { useStoreSelector } from '../../store/store';
+import { getSequenceFlatMap } from '../../utils/getSequenceFlatMap';
+import { useCurrentStep } from '../../routes/utils';
+import { TextOnlyInput } from './TextOnlyInput';
+import { useFetchStylesheet } from '../../utils/fetchStylesheet';
+import { parseStringOptionValue, parseStringOptions } from '../../utils/stringOptions';
+import { getDropdownOptions } from '../../utils/dropdownOptions';
+import {
+  getDefaultFieldValue, getResponseWidth, normalizeCheckboxValue,
+} from './utils';
+import {
+  generateErrorMessage,
+  usesStandaloneDontKnowField,
+} from './responseErrors';
+import { CustomResponseField } from '../../store/types';
+import { compileTemplate } from '../../utils/handlebars';
+import { useTemplateAnswerContext } from '../../store/hooks/useTemplateAnswerContext';
+import { OptionTextTemplateContext } from './OptionLabel';
+import { AnswerStatus } from '../../utils/correctAnswer';
+
+export function ResponseSwitcher({
+  response,
+  form,
+  storedAnswer,
+  answerFinalized,
+  index,
+  config,
+  dontKnowCheckbox,
+  otherInput,
+  disabled,
+  isDelayedDisabled = false,
+  field,
+  validationContext,
+  customError,
+  errors,
+  matrixRowFeedback,
+}: {
+  response: Response;
+  form: GetInputPropsReturnType;
+  storedAnswer?: StoredAnswer['answer'];
+  answerFinalized?: boolean;
+  index: number;
+  config: IndividualComponent;
+  dontKnowCheckbox?: GetInputPropsReturnType;
+  otherInput?: GetInputPropsReturnType;
+  disabled?: boolean;
+  isDelayedDisabled?: boolean;
+  field?: CustomResponseField;
+  validationContext?: StoredAnswer['answer'];
+  customError?: string | null;
+  errors?: boolean;
+  matrixRowFeedback?: Record<string, AnswerStatus>;
+}) {
+  const studyConfig = useStudyConfig();
+  const isAnalysis = useIsAnalysis();
+
+  const sequence = useStoreSelector((state) => state.sequence);
+  const flatSequence = useMemo(() => getSequenceFlatMap(sequence), [sequence]);
+  const currentStep = useCurrentStep();
+  const nextComponent = useMemo(() => (typeof currentStep === 'number' ? flatSequence[currentStep + 1] : undefined), [currentStep, flatSequence]);
+  const nextConfig = useMemo(() => (nextComponent ? studyConfig.components[nextComponent] : undefined), [nextComponent, studyConfig]);
+
+  const completed = useStoreSelector((state) => state.completed);
+  const usesStandaloneDontKnow = usesStandaloneDontKnowField(response);
+
+  const finalStoredAnswer = isAnalysis || answerFinalized || completed ? storedAnswer : undefined;
+
+  // Don't update if we're in analysis mode
+  const ans = useMemo(() => (isAnalysis || (Object.keys(finalStoredAnswer || {}).length > 0 && !nextConfig?.previousButton) || completed ? { value: finalStoredAnswer?.[response.id], readOnly: true } : form) || { value: undefined }, [isAnalysis, finalStoredAnswer, response.id, form, nextConfig?.previousButton, completed]);
+  const dontKnowValue = usesStandaloneDontKnow
+    ? ((Object.keys(finalStoredAnswer || {}).length > 0 ? { checked: finalStoredAnswer![`${response.id}-dontKnow`] } : dontKnowCheckbox) || { checked: undefined })
+    : { checked: undefined };
+  const dontKnowChecked = !!dontKnowValue.checked;
+  const otherValue = (Object.keys(finalStoredAnswer || {}).length > 0 ? { value: finalStoredAnswer![`${response.id}-other`] } : otherInput) || { value: undefined };
+  const inputDisabled = !!(Object.keys(finalStoredAnswer || {}).length > 0 || disabled || completed);
+
+  const [searchParams] = useSearchParams();
+
+  const enumerateQuestions = useMemo(() => config?.enumerateQuestions ?? studyConfig.uiConfig.enumerateQuestions ?? false, [config, studyConfig]);
+
+  useFetchStylesheet(response.stylesheetPath);
+
+  const isStateDisabled = useMemo(() => {
+    // Always disable if participant is completed
+    if (completed) {
+      return true;
+    }
+
+    // Do not disable if we're at the last element before a dynamic block
+    if (typeof currentStep === 'number') {
+      const currentComponent = flatSequence[currentStep];
+      for (let i = 0; i < sequence.components.length; i += 1) {
+        const component = sequence.components[i];
+        if (typeof component === 'string') {
+          if (component === currentComponent) {
+            // Check if the next component is a dynamic block
+            if (i + 1 < sequence.components.length && typeof sequence.components[i + 1] !== 'string') {
+              return false;
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // Do not disable if the next page has previousButton enabled
+    if (typeof currentStep === 'number' && currentStep + 1 < flatSequence.length) {
+      if (nextConfig?.previousButton) {
+        return false;
+      }
+    }
+
+    if (response.paramCapture) {
+      const responseParam = searchParams.get(response.paramCapture);
+      return inputDisabled || !!responseParam;
+    }
+    return inputDisabled;
+  }, [completed, currentStep, flatSequence, response.paramCapture, inputDisabled, sequence.components, nextConfig?.previousButton, searchParams]);
+  const isDisabled = isStateDisabled || isDelayedDisabled;
+
+  const fieldInitialValue = useMemo(() => {
+    if (response.paramCapture) {
+      const capturedValue = searchParams.get(response.paramCapture);
+      return response.type === 'checkbox' ? normalizeCheckboxValue(capturedValue) : capturedValue || '';
+    }
+
+    const defaultFieldValue = getDefaultFieldValue(response);
+    if (defaultFieldValue !== null) {
+      return defaultFieldValue;
+    }
+
+    if (response.type === 'reactive' || response.type === 'checkbox') {
+      return [];
+    }
+
+    if (response.type === 'matrix-radio' || response.type === 'matrix-checkbox') {
+      return Object.fromEntries(response.questionOptions.map((entry) => [parseStringOptionValue(entry), '']));
+    }
+
+    if (response.type === 'slider' && response.startingValue !== undefined) {
+      return response.startingValue.toString();
+    }
+
+    if (response.type === 'custom') {
+      return null;
+    }
+
+    return '';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response.paramCapture, (response as MatrixResponse).questionOptions, (response as SliderResponse).startingValue, response.type, searchParams]);
+
+  const responseStyle = useMemo(() => response.style || {}, [response.style]);
+  const responseDividers = useMemo(() => response.withDivider ?? config?.responseDividers ?? studyConfig.uiConfig.responseDividers, [response, config, studyConfig]);
+  const customResponseValue = useMemo<JsonValue | null>(() => (ans.value ?? null) as JsonValue | null, [ans.value]);
+  const validationValues = useMemo(() => {
+    const values = { ...validationContext, [response.id]: ans.value };
+    const responseIds = new Set(config.response?.map((item) => item.id) ?? []);
+    const dontKnowKey = `${response.id}-dontKnow`;
+    if (usesStandaloneDontKnow && !responseIds.has(dontKnowKey)) {
+      values[dontKnowKey] = dontKnowChecked;
+    }
+    const otherKey = `${response.id}-other`;
+    if ((response.type === 'radio' || response.type === 'checkbox') && response.withOther && !responseIds.has(otherKey)) {
+      values[otherKey] = otherValue.value;
+    }
+    return values;
+  }, [validationContext, response, ans.value, usesStandaloneDontKnow, dontKnowChecked, otherValue.value, config.response]);
+  const templateData = useTemplateAnswerContext();
+  const errorOptions = useMemo(() => {
+    if (response.type === 'dropdown') {
+      return getDropdownOptions(response);
+    }
+
+    if (response.type === 'radio' || response.type === 'checkbox' || response.type === 'buttons') {
+      return parseStringOptions(response.options);
+    }
+
+    if (response.type === 'likert') {
+      const startValue = response.start ?? 1;
+      const spacingValue = response.spacing ?? 1;
+      return Array.from({ length: Number(response.numItems) }, (_, idx) => {
+        const value = startValue + (idx * spacingValue);
+        return { label: `${value}`, value: `${value}` };
+      });
+    }
+
+    return undefined;
+  }, [response]);
+  const responseError = useMemo(() => {
+    if (
+      response.type === 'custom'
+      || response.type === 'textOnly'
+      || response.type === 'divider'
+    ) {
+      return null;
+    }
+
+    const displayOptions = errors && response.requiredValue != null
+      ? errorOptions?.map((option) => ({
+        ...option,
+        label: option.value === response.requiredValue
+          ? compileTemplate(option.label, config?.parameters ?? {}, { noEscape: true, data: templateData })
+          : option.label,
+      }))
+      : errorOptions;
+
+    return generateErrorMessage(
+      response,
+      ans as { value?: number | string | string[] | Record<string, string>; checked?: string[] },
+      displayOptions,
+      { showRequiredErrors: errors, values: validationValues },
+    );
+  }, [response, ans, errorOptions, errors, validationValues, config?.parameters, templateData]);
+  const displayError = response.type === 'custom' ? customError : responseError;
+  const responseWrapperStyle = useMemo(() => {
+    if (!displayError) {
+      return responseStyle;
+    }
+
+    const errorColor = response.required === false ? 'orange' : 'red';
+
+    return {
+      border: `1px solid var(--mantine-color-${errorColor}-outline)`,
+      backgroundColor: `var(--mantine-color-${errorColor}-light)`,
+      color: `var(--mantine-color-${errorColor}-light-color)`,
+      borderRadius: 'var(--mantine-radius-md)',
+      padding: 'var(--mantine-spacing-sm)',
+      ...responseStyle,
+    };
+  }, [displayError, response.required, responseStyle]);
+
+  const optionTextTemplate = useMemo(() => ({
+    parameters: config?.parameters ?? {},
+    data: templateData ?? {},
+  }), [config?.parameters, templateData]);
+
+  const templatedFields = useMemo(() => {
+    const parameters = config?.parameters ?? {};
+    const fields: { prompt?: string; secondaryText?: string; infoText?: string } = {};
+    if (!templateData) {
+      return fields;
+    }
+    if ('prompt' in response && typeof response.prompt === 'string') {
+      fields.prompt = compileTemplate(response.prompt, parameters, { data: templateData });
+    }
+    if ('secondaryText' in response && typeof response.secondaryText === 'string') {
+      fields.secondaryText = compileTemplate(response.secondaryText, parameters, { noEscape: true, data: templateData });
+    }
+    if ('infoText' in response && typeof response.infoText === 'string') {
+      fields.infoText = compileTemplate(response.infoText, parameters, { noEscape: true, data: templateData });
+    }
+    return fields;
+  }, [response, config?.parameters, templateData]);
+  const withTemplatedFields = <T extends Response>(r: T): T => ({ ...r, ...templatedFields } as T);
+
+  // A dynamic component can render this child one pass before its own route resolver settles.
+  // Do not expose raw Handlebars expressions while the answer context is unavailable.
+  if (!templateData) {
+    return null;
+  }
+
+  const content = (
+    <Box
+      mb={responseDividers ? 'xl' : 'lg'}
+      className={`response response--${response.type}`}
+      data-answer-width={getResponseWidth(response)}
+      id={response.id}
+      data-testid={response.delay && response.delay > 0 ? `delay-wrapper-${response.id}` : undefined}
+      inert={isDelayedDisabled}
+      tabIndex={isDelayedDisabled ? -1 : undefined}
+      style={isDelayedDisabled ? {
+        ...responseWrapperStyle,
+        pointerEvents: 'none',
+        opacity: 0.4,
+        transition: 'opacity 0.3s ease',
+      } : responseWrapperStyle}
+    >
+      {response.type === 'numerical' && (
+      <NumericInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: number }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'shortText' && (
+      <StringInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'date' && (
+      <DateResponseInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'time' && (
+      <TimeResponseInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'longText' && (
+      <TextAreaInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'likert' && (
+      <LikertInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'dropdown' && (
+      <DropdownInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'slider' && (
+      <SliderInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: number }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'radio' && (
+      <RadioInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+        otherValue={otherValue}
+      />
+      )}
+      {response.type === 'checkbox' && (
+      <CheckBoxInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        clearDisabled={isDisabled}
+        answer={ans as { value: string[] }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+        otherValue={otherValue}
+        dontKnowCheckbox={dontKnowCheckbox as { checked?: boolean; onChange?: (value: boolean) => void }}
+      />
+      )}
+      {(response.type === 'ranking-sublist' || response.type === 'ranking-categorical' || response.type === 'ranking-pairwise') && (
+      <RankingInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: Record<string, string> }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'reactive' && (
+      <ReactiveInput
+        response={withTemplatedFields(response)}
+        answer={ans as { value: string[] }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {(response.type === 'matrix-radio' || response.type === 'matrix-checkbox') && (
+      <MatrixInput
+        disabled={isDisabled}
+        response={withTemplatedFields(response)}
+        answer={ans as { value: Record<string, string> }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+        rowFeedback={matrixRowFeedback}
+      />
+      )}
+      {response.type === 'buttons' && (
+      <ButtonsInput
+        response={withTemplatedFields(response)}
+        disabled={isDisabled || dontKnowChecked}
+        answer={ans as { value: string }}
+        error={responseError}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+      />
+      )}
+      {response.type === 'custom' && field && (
+      <CustomResponseInput
+        response={withTemplatedFields(response as CustomResponse)}
+        disabled={isDisabled || dontKnowChecked}
+        value={customResponseValue}
+        error={customError || undefined}
+        index={index}
+        enumerateQuestions={enumerateQuestions}
+        field={field}
+      />
+      )}
+      {response.type === 'textOnly' && (
+      <TextOnlyInput response={withTemplatedFields(response)} />
+      )}
+      {usesStandaloneDontKnow && (
+      <Checkbox
+        mt="xs"
+        disabled={isDisabled}
+        label="I don't know"
+        classNames={{ input: classes.fixDisabled, label: classes.fixDisabledLabel, icon: classes.fixDisabledIcon }}
+        {...dontKnowCheckbox}
+        checked={dontKnowValue.checked}
+        onChange={(event) => { dontKnowCheckbox?.onChange(event.currentTarget.checked); form.onChange(fieldInitialValue); }}
+      />
+      )}
+      {(response.type === 'divider' || responseDividers) && <Divider mt="xl" mb="xs" />}
+    </Box>
+  );
+  return (
+    <OptionTextTemplateContext.Provider value={optionTextTemplate}>
+      {content}
+    </OptionTextTemplateContext.Provider>
+  );
+}

@@ -1,0 +1,384 @@
+/* eslint-disable react/no-unstable-nested-components */
+import {
+  Text, Flex, Group, Space, Tooltip, Badge, RingProgress, Stack, ActionIcon, SegmentedControl, isLightColor,
+} from '@mantine/core';
+import {
+  JSX, useCallback, useEffect, useMemo, useState,
+} from 'react';
+import { useParams } from 'react-router';
+import {
+  MantineReactTable, MRT_Cell as MrtCell, MRT_ColumnDef as MrtColumnDef, MRT_RowSelectionState as MrtRowSelectionState, useMantineReactTable,
+} from 'mantine-react-table';
+import {
+  IconCheck, IconHourglassEmpty, IconX, IconCopy,
+} from '@tabler/icons-react';
+
+import { StudyConfig } from '../../../parser/types';
+import { ParticipantDataWithStatus } from '../../../storage/types';
+import { ParticipantStatus, getParticipantDataStatus } from '../../../storage/participantStatus';
+import { StoredAnswer } from '../../../store/types';
+import { ParticipantRejectModal } from '../ParticipantRejectModal';
+import { participantName } from '../../../utils/participantName';
+import { AllTasksTimeline } from '../replay/AllTasksTimeline';
+import { ReplayTaskOrder } from '../replay/taskOrdering';
+import { TimelineMode } from '../replay/timelineLayout';
+import { youtubeReadableDuration } from '../../../utils/humanReadableDuration';
+import { getSequenceFlatMap } from '../../../utils/getSequenceFlatMap';
+import { MetaCell } from './MetaCell';
+import { componentAnswersAreCorrect } from '../../../utils/componentCorrectness';
+import { hasResponseScorer } from '../../../utils/correctAnswer';
+import { studyComponentToIndividualComponent } from '../../../utils/handleComponentInheritance';
+import { DISTINCT_COLOR_PALETTE } from '../../../utils/colors';
+import { ParticipantTimeoutModal } from '../ParticipantTimeoutModal';
+
+function formatDate(date: Date): JSX.Element {
+  if (date.valueOf() === 0 || Number.isNaN(date.valueOf())) {
+    return <Text size="sm" c="dimmed">None</Text>;
+  }
+
+  return <Text size="sm">{date.toLocaleDateString([], { hour: '2-digit', minute: '2-digit' })}</Text>;
+}
+
+export function TableView({
+  visibleParticipants,
+  participantsForTimeout,
+  studyConfig,
+  allConfigs,
+  refresh,
+  width,
+  stageColors,
+  selectedParticipants,
+  onSelectionChange,
+}: {
+  visibleParticipants: ParticipantDataWithStatus[];
+  participantsForTimeout: ParticipantDataWithStatus[];
+  studyConfig: StudyConfig;
+  allConfigs: Record<string, StudyConfig>;
+  refresh: () => Promise<ParticipantDataWithStatus[]>;
+  width: number;
+  stageColors: Record<string, string>;
+  selectedParticipants: ParticipantDataWithStatus[];
+  onSelectionChange: (participants: ParticipantDataWithStatus[]) => void;
+}) {
+  const { studyId } = useParams();
+  const [checked, setChecked] = useState<MrtRowSelectionState>({});
+  const [taskOrder, setTaskOrder] = useState<ReplayTaskOrder>('sequence');
+  const [timelineMode, setTimelineMode] = useState<TimelineMode>('time');
+
+  useEffect(() => {
+    const newSelectedParticipants = Object.keys(checked).filter((v) => checked[v])
+      .map((participantId) => visibleParticipants.find((p) => p.participantId === participantId))
+      .filter((p) => p !== undefined) as ParticipantDataWithStatus[];
+    onSelectionChange(newSelectedParticipants);
+  }, [checked, visibleParticipants, onSelectionChange]);
+
+  const handleRefresh = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
+
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const handleCopyParticipantId = (participantId: string) => {
+    navigator.clipboard.writeText(participantId);
+    setCopied(participantId);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const columns = useMemo<MrtColumnDef<ParticipantDataWithStatus>[]>(() => {
+    const hasCondition = visibleParticipants.some((participant) => participant.conditions ?? participant.searchParams?.condition);
+
+    return [
+      {
+        accessorFn: (row: ParticipantDataWithStatus) => {
+          const incompleteEntries = Object.entries(row.answers || {}).filter((e) => e[1].startTime === 0);
+
+          const denominator = Math.max(getSequenceFlatMap(row.sequence).length - 1, 1);
+
+          return {
+            percent: (Object.entries(row.answers).length - incompleteEntries.length) / denominator,
+            status: getParticipantDataStatus(row),
+            rejected: row.rejected,
+          };
+        },
+        header: 'Status',
+        size: 100,
+        Cell: ({ cell }: { cell: MrtCell<ParticipantDataWithStatus, { percent: number, status: ParticipantStatus, rejected: ParticipantDataWithStatus['rejected'] }> }) => {
+          const cellValue = cell.getValue();
+          const isLate = cellValue.status === 'completedLate';
+          return (
+            cellValue.rejected ? (
+              <Stack align="center" justify="center" gap={4} w="100%">
+                <Tooltip label="Rejected"><IconX size={30} color="var(--mantine-color-red-text)" style={{ marginBottom: -3 }} /></Tooltip>
+                <Text size="xs" c="dimmed" ta="center">{cellValue.rejected.reason}</Text>
+              </Stack>
+            )
+              : (cellValue.status === 'timedOut' || isLate) ? (
+                <Stack align="center" justify="center" gap={2} w="100%">
+                  <Tooltip label={isLate ? 'Completed late after timing out' : 'Timed out'}>
+                    <Text size="xs" fw={700} c="orange">{isLate ? 'Late' : 'Timed out'}</Text>
+                  </Tooltip>
+                </Stack>
+              ) : cellValue.status === 'completed' ? (
+                <Group align="center" justify="center" w="100%">
+                  <Tooltip label="Completed"><IconCheck size={30} color="var(--mantine-color-teal-text)" style={{ marginBottom: -3 }} /></Tooltip>
+                </Group>
+              )
+                : (
+                  <Group align="center" justify="center" w="100%">
+                    <Tooltip label="In Progress">
+                      <RingProgress
+                        size={30}
+                        thickness={4}
+                        sections={[{ value: cellValue.percent * 100, color: 'blue' }]}
+                      />
+                    </Tooltip>
+                  </Group>
+                ));
+        },
+      },
+      {
+        accessorKey: 'participantIndex',
+        header: '#',
+        size: 80,
+      },
+      {
+        accessorKey: 'stage',
+        header: 'Stage',
+        size: 100,
+        Cell: ({ cell }: { cell: MrtCell<ParticipantDataWithStatus, string> }) => {
+          const stageName = cell.getValue();
+          if (!stageName || stageName === '') {
+            return (
+              <Badge
+                color="gray"
+                size="md"
+                variant="light"
+              >
+                N/A
+              </Badge>
+            );
+          }
+          const stageColor = stageColors[stageName] || DISTINCT_COLOR_PALETTE[0];
+          return (
+            <Badge
+              color={stageColor}
+              c={isLightColor(stageColor) ? 'black' : 'white'}
+              size="md"
+              variant="filled"
+            >
+              {stageName}
+            </Badge>
+          );
+        },
+      },
+      {
+        accessorKey: 'participantId',
+        header: 'ID',
+        Cell: ({ row }: { row: { original: ParticipantDataWithStatus } }) => (
+          <Flex align="center">
+            <Text size="sm">{row.original.participantId}</Text>
+            <Tooltip label={copied === row.original.participantId ? 'Copied' : 'Copy ID'}>
+              <ActionIcon
+                variant="subtle"
+                onClick={() => handleCopyParticipantId(row.original.participantId)}
+                color="gray"
+              >
+                <IconCopy size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Flex>
+        ),
+      },
+      ...(studyConfig.uiConfig.participantNameField ? [
+        {
+          accessorFn: (row: ParticipantDataWithStatus) => participantName(row, studyConfig),
+          header: 'Name',
+          size: 100,
+        },
+      ] : []),
+      ...(hasCondition ? [
+        {
+          accessorFn: (row: ParticipantDataWithStatus) => {
+            const { conditions } = row;
+            if (Array.isArray(conditions) && conditions.length > 0) {
+              return conditions.join(',');
+            }
+            return conditions ?? row.searchParams?.condition ?? 'default';
+          },
+          header: 'Condition',
+          size: 130,
+        },
+      ] : []),
+      {
+        accessorFn: (row: ParticipantDataWithStatus) => new Date(Math.max(...Object.values<StoredAnswer>(row.answers).filter((data) => data.endTime > 0).map((s) => s.endTime)) - Math.min(...Object.values<StoredAnswer>(row.answers).filter((data) => data.startTime > 0).map((s) => s.startTime))),
+        header: 'Duration',
+        size: 120,
+        Cell: ({ cell }: { cell: MrtCell<ParticipantDataWithStatus, Date> }) => (
+          <Badge
+            variant="light"
+            size="md"
+            color="gray"
+            leftSection={<IconHourglassEmpty width={18} height={18} style={{ paddingTop: 1 }} />}
+            pb={1}
+          >
+            {youtubeReadableDuration(+cell.getValue()) || 'N/A'}
+          </Badge>
+        ),
+
+      },
+      {
+        accessorFn: (row: ParticipantDataWithStatus) => new Date(Math.min(...Object.values<StoredAnswer>(row.answers).filter((data) => data.startTime > 0).map((s) => s.startTime))),
+        header: 'Start Time',
+        size: 150,
+        Cell: ({ cell }: { cell: MrtCell<ParticipantDataWithStatus, Date> }) => (formatDate(cell.getValue() as Date)),
+      },
+      {
+        accessorFn: (row: ParticipantDataWithStatus) => Object.values(row.answers)
+          .filter((answer) => answer.endTime > 0)
+          .flatMap((answer) => {
+            const participantConfig = row.participantConfigHash ? allConfigs[row.participantConfigHash] : studyConfig;
+            if (!participantConfig) {
+              return answer.correctAnswer?.length || Object.keys(answer.checkAnswer?.scores ?? {}).length ? [null] : [];
+            }
+            const componentConfig = participantConfig.components[answer.componentName];
+            const component = componentConfig ? studyComponentToIndividualComponent(componentConfig, participantConfig) : undefined;
+            const hasSavedScores = Object.keys(answer.checkAnswer?.scores ?? {}).length > 0;
+            if (!answer.correctAnswer?.length && !component?.response?.some(hasResponseScorer) && !hasSavedScores) return [];
+
+            return [componentAnswersAreCorrect(
+              answer.answer,
+              answer.correctAnswer,
+              component?.response,
+              answer.checkAnswer,
+              answer.globalStoreEntry,
+            )];
+          }),
+        header: 'Correct Answers',
+        size: 160,
+        Cell: ({ cell }: { cell: MrtCell<ParticipantDataWithStatus, (boolean | null)[]> }) => (
+          <Group gap={4}>
+            <Badge
+              variant="light"
+              size="md"
+              color="green"
+              leftSection={<IconCheck width={18} height={18} style={{ paddingTop: 1 }} />}
+              pb={1}
+            >
+              {cell.getValue().filter((b) => b).length}
+            </Badge>
+            <Badge
+              variant="light"
+              size="md"
+              color="red"
+              leftSection={<IconX width={18} height={18} style={{ paddingTop: 1 }} />}
+              pb={1}
+            >
+
+              {cell.getValue().filter((value) => value === false).length}
+            </Badge>
+            {cell.getValue().includes(null) && (
+              <Badge color="gray" variant="light">
+                {`${cell.getValue().filter((value) => value === null).length} unknown`}
+              </Badge>
+            )}
+          </Group>
+        ),
+      },
+      {
+        accessorKey: 'metadata',
+        header: 'Metadata',
+        size: 200,
+        Cell: ({ cell }: { cell: MrtCell<ParticipantDataWithStatus, ParticipantDataWithStatus['metadata']> }) => <MetaCell metaData={cell.getValue()} />,
+      },
+    ];
+  }, [studyConfig, allConfigs, stageColors, copied, visibleParticipants]);
+
+  const table = useMantineReactTable({
+    columns,
+    data: visibleParticipants, // must be memoized or stable (useState, useMemo, defined outside of this component, etc.)
+    enableColumnResizing: true,
+    columnResizeMode: 'onEnd',
+    enableRowSelection: true,
+    getRowId: (originalRow) => originalRow.participantId,
+    onRowSelectionChange: setChecked,
+    manualPagination: true,
+    state: { rowSelection: checked },
+    paginationDisplayMode: 'pages',
+    enablePagination: false,
+    enableRowVirtualization: true,
+    mantinePaperProps: { style: { maxHeight: '100%', display: 'flex', flexDirection: 'column' } },
+    mantineDetailPanelProps: {
+      style: {
+        flex: '1 1 100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        width: '100%',
+      },
+    },
+    layoutMode: 'grid',
+    renderDetailPanel: ({ row }) => {
+      const r = row.original;
+
+      if (!r.participantId) {
+        return null;
+      }
+
+      if (r.participantConfigHash && !allConfigs[r.participantConfigHash]) {
+        return <Text>Participant configuration unavailable. Replay correctness is unknown.</Text>;
+      }
+
+      return (
+        <AllTasksTimeline maxLength={undefined} studyConfig={allConfigs[r.participantConfigHash] ?? studyConfig} studyId={studyId || ''} participantData={r} width={width - 60} taskOrder={taskOrder} timelineMode={timelineMode} />
+      );
+    },
+    defaultColumn: {
+      minSize: 20, // allow columns to get smaller than default
+      maxSize: 1000, // allow columns to get larger than default
+      size: 180, // make columns wider by default
+    },
+    enableDensityToggle: false,
+    positionToolbarAlertBanner: 'none',
+    renderTopToolbarCustomActions: () => (
+      <Flex mb={8} p={8} gap="md" align="center">
+        <Group gap="xs">
+          <Text size="sm" fw={500}>Order</Text>
+          <SegmentedControl
+            size="sm"
+            value={taskOrder}
+            onChange={(value) => setTaskOrder(value as ReplayTaskOrder)}
+            data={[
+              { value: 'sequence', label: 'Sequence' },
+              { value: 'answer-time', label: 'Answer time' },
+            ]}
+          />
+        </Group>
+        <SegmentedControl
+          size="sm"
+          value={timelineMode}
+          onChange={(value) => setTimelineMode(value as TimelineMode)}
+          data={[
+            { value: 'time', label: 'Time' },
+            { value: 'uniform', label: 'Uniform' },
+          ]}
+        />
+        <ParticipantRejectModal selectedParticipants={selectedParticipants} refresh={handleRefresh} />
+        <ParticipantTimeoutModal participants={participantsForTimeout} refresh={handleRefresh} />
+      </Flex>
+    ),
+  });
+
+  return (
+    visibleParticipants.length > 0 ? (
+      <MantineReactTable
+        table={table}
+      />
+    ) : (
+      <>
+        <Space h="xl" />
+        <Flex justify="center" align="center">
+          <Text>No data available</Text>
+        </Flex>
+      </>
+    )
+  );
+}

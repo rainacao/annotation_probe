@@ -1,0 +1,63 @@
+.annotation-trial {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.annotation-controls,
+.annotation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.annotation-controls {
+  flex-wrap: wrap;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.annotation-actions button {
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-default);
+  background: var(--mantine-color-default);
+  color: var(--mantine-color-text);
+  cursor: pointer;
+}
+
+.annotation-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.annotation-image-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 12rem;
+  flex: 1 1 auto;
+  place-items: center;
+  overflow: hidden;
+  --annotation-margin: 24px;
+}
+
+.annotation-image-stage img {
+  display: block;
+  max-width: calc(100% - 2 * var(--annotation-margin));
+  max-height: max(0px, calc(70vh - 2 * var(--annotation-margin)));
+  object-fit: contain;
+  user-select: none;
+}
+
+.annotation-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}

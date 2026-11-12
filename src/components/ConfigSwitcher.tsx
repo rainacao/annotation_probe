@@ -1,0 +1,583 @@
+import {
+  Anchor, AppShell, Badge, Box, Button, Card, Container, CopyButton, Divider, Flex, Image, MultiSelect, Skeleton, rem, Tabs, Text, Tooltip,
+} from '@mantine/core';
+import {
+  IconBan, IconBrandFirebase, IconBrandSupabase, IconCamera, IconChartHistogram, IconCheck, IconCopy, IconDatabase, IconDeviceDesktop, IconExternalLink, IconGraph, IconGraphOff, IconListCheck, IconMicrophone, IconSchema, IconSchemaOff,
+} from '@tabler/icons-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Timestamp } from 'firebase/firestore';
+import { useSearchParams } from 'react-router';
+import {
+  GlobalConfig, ParsedConfig, StudyConfig,
+} from '../parser/types';
+import { sanitizeStringForUrl } from '../utils/sanitizeStringForUrl';
+import { PREFIX } from '../utils/Prefix';
+import { ErrorLoadingConfig } from './ErrorLoadingConfig';
+import { ReactMarkdownWrapper } from './ReactMarkdownWrapper';
+import { ParticipantStatusBadges } from '../analysis/interface/ParticipantStatusBadges';
+import { ParticipantStatusCounts } from '../storage/participantStatus';
+import { useStorageEngine } from '../storage/storageEngineHooks';
+import { StudyModes } from '../storage/engines/types';
+import { startDesignerPreview } from '../store/hooks/useDesignerPreview';
+import { getSequenceConditions } from '../utils/handleConditionLogic';
+import { useStudyRecordings } from '../utils/useStudyRecordings';
+import { useDeviceRules } from '../utils/useDeviceRules';
+import { getUnmetDeviceRestrictionLines, getUnmetDeviceRestrictionTooltip } from './interface/DeviceRestrictionString';
+
+const DEFAULT_TAB_LABEL = 'Studies';
+
+function ValidStudyCard({
+  configName,
+  config,
+  url,
+  modes,
+  canViewAnalytics,
+}: {
+  configName: string;
+  config: ParsedConfig<StudyConfig>;
+  url: string;
+  modes: StudyModes | null;
+  canViewAnalytics: boolean;
+}) {
+  const { storageEngine } = useStorageEngine();
+
+  const [studyStatusAndTiming, setStudyStatusAndTiming] = useState<ParticipantStatusCounts & { minTime: Timestamp | number | null; maxTime: Timestamp | number | null } | null>(null);
+
+  useEffect(() => {
+    if (!storageEngine) return undefined;
+    let isCancelled = false;
+    storageEngine.getParticipantsStatusCounts(configName).then((status) => {
+      if (!isCancelled) setStudyStatusAndTiming(status);
+    }).catch((error) => {
+      console.error('Failed to load participant counts:', error);
+    });
+    return () => { isCancelled = true; };
+  }, [configName, storageEngine]);
+
+  const { minTime, maxTime } = useMemo(() => {
+    if (!studyStatusAndTiming) return { minTime: null, maxTime: null };
+    if (!studyStatusAndTiming.minTime || !studyStatusAndTiming.maxTime) return { minTime: null, maxTime: null };
+
+    const min = typeof studyStatusAndTiming.minTime === 'number' ? new Date(studyStatusAndTiming.minTime) : studyStatusAndTiming.minTime.toDate();
+    const max = typeof studyStatusAndTiming.maxTime === 'number' ? new Date(studyStatusAndTiming.maxTime) : studyStatusAndTiming.maxTime.toDate();
+
+    return {
+      minTime: min.toLocaleDateString('en-US', {
+        weekday: 'short', year: 'numeric', month: 'long', day: 'numeric',
+      }),
+      maxTime: max.toLocaleDateString('en-US', {
+        weekday: 'short', year: 'numeric', month: 'long', day: 'numeric',
+      }),
+    };
+  }, [studyStatusAndTiming]);
+
+  const currentMode = useMemo(() => {
+    if (!modes) return 'Unknown';
+
+    if (modes.dataCollectionEnabled) {
+      if (studyStatusAndTiming && (
+        studyStatusAndTiming.inProgress > 0
+        || studyStatusAndTiming.completed > 0
+        || studyStatusAndTiming.completedLate > 0
+      )) {
+        return 'Collecting Data';
+      }
+      return 'Ready to Collect Data';
+    }
+    return 'Data Collection Disabled';
+  }, [modes, studyStatusAndTiming]);
+  const { hasAudioRecording, hasScreenRecording, hasWebcamRecording } = useStudyRecordings(config);
+  const {
+    isBrowserAllowed,
+    isDeviceAllowed,
+    isInputAllowed,
+    isDisplayAllowed,
+  } = useDeviceRules(config.studyRules);
+  const unmetRestrictions = useMemo(() => getUnmetDeviceRestrictionLines(config.studyRules, {
+    isBrowserAllowed,
+    isDeviceAllowed,
+    isInputAllowed,
+    isDisplayAllowed,
+  }), [config.studyRules, isBrowserAllowed, isDeviceAllowed, isDisplayAllowed, isInputAllowed]);
+  const restrictionsTooltip = useMemo(() => getUnmetDeviceRestrictionTooltip(config.studyRules, {
+    isBrowserAllowed,
+    isDeviceAllowed,
+    isInputAllowed,
+    isDisplayAllowed,
+  }), [config.studyRules, isBrowserAllowed, isDeviceAllowed, isDisplayAllowed, isInputAllowed]);
+
+  const conditions = useMemo(() => getSequenceConditions(config.sequence), [config.sequence]);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>(['default']);
+  const [conditionParticipantCounts, setConditionParticipantCounts] = useState<Record<string, number>>({});
+
+  // Load participant counts into dropdown for each condition
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadConditionCounts() {
+      if (!storageEngine || !canViewAnalytics) return;
+      try {
+        const conditionData = await storageEngine.getConditionData(configName);
+        if (!isCancelled) setConditionParticipantCounts(conditionData.conditionCounts);
+      } catch (error) {
+        if (!isCancelled) setConditionParticipantCounts({});
+        console.error('Failed to load condition counts:', error);
+      }
+    }
+
+    loadConditionCounts();
+    return () => { isCancelled = true; };
+  }, [configName, storageEngine, canViewAnalytics]);
+
+  const conditionOptions = useMemo(() => (
+    ['default', ...conditions].map((condition) => ({
+      value: condition,
+      // e.g. default (10 participants)
+      label: canViewAnalytics ? `${condition} (${conditionParticipantCounts[condition] || 0} participant${(conditionParticipantCounts[condition] || 0) === 1 ? '' : 's'})` : condition,
+    }))
+  ), [conditions, conditionParticipantCounts, canViewAnalytics]);
+
+  const selectedStudyConditions = useMemo(
+    () => selectedConditions.filter((condition) => condition !== 'default'),
+    [selectedConditions],
+  );
+
+  const studyUrl = useMemo(
+    () => (selectedStudyConditions.length > 0
+      ? `${PREFIX}${url}?condition=${selectedStudyConditions.join(',')}`
+      : `${PREFIX}${url}`),
+    [selectedStudyConditions, url],
+  );
+
+  return (
+    <Card key={configName} shadow="sm" radius="md" my="sm" withBorder>
+      <Flex direction="row" justify="space-between">
+        <Text fw="bold">
+          {config.studyMetadata.title}
+        </Text>
+      </Flex>
+      <Text c="dimmed">
+        <Text span fw={500}>Authors: </Text>
+        {config.studyMetadata.authors.join(', ')}
+      </Text>
+      <Text c="dimmed">{config.studyMetadata.description}</Text>
+      <Text c="dimmed" ta="right" style={{ paddingRight: 5 }}>
+        <Anchor
+          target="_blank"
+          onClick={(e) => e.stopPropagation()}
+          href={`${import.meta.env.VITE_REPO_URL}${url}`}
+        >
+          View source:
+          {' '}
+          {url}
+          <IconExternalLink style={{
+            width: rem(18), height: rem(18), marginLeft: rem(2), marginBottom: rem(-3),
+          }}
+          />
+        </Anchor>
+      </Text>
+
+      {canViewAnalytics && config.warnings.length > 0 && (
+      <ErrorLoadingConfig issues={config.warnings} type="warning" />
+      )}
+
+      <Divider my="md" />
+
+      <Flex direction="row" gap="sm">
+        <Text fw="bold" size="sm" opacity={0.7}>
+          Study Status:
+          {' '}
+          {currentMode}
+        </Text>
+        {canViewAnalytics && studyStatusAndTiming && (
+          <ParticipantStatusBadges
+            completed={studyStatusAndTiming.completed}
+            inProgress={studyStatusAndTiming.inProgress}
+            rejected={studyStatusAndTiming.rejected}
+            timedOut={studyStatusAndTiming.timedOut}
+            completedLate={studyStatusAndTiming.completedLate}
+            // Turning auto-timeout off does not clear earlier timeouts, and those
+            // participants are not counted in any other badge.
+            showTimeoutStatuses={
+              modes?.autoTimeoutMinutes !== undefined
+              || studyStatusAndTiming.timedOut > 0
+              || studyStatusAndTiming.completedLate > 0
+            }
+          />
+        )}
+        <Flex ml="auto" gap="sm" opacity={0.7}>
+          {hasAudioRecording && (
+          <Tooltip label="Audio recording enabled" withinPortal position="bottom">
+            <IconMicrophone size={16} color="var(--mantine-color-orange-text)" />
+          </Tooltip>
+          )}
+          {hasScreenRecording && (
+          <Tooltip label="Screen recording enabled" withinPortal position="bottom">
+            <IconDeviceDesktop size={16} color="var(--mantine-color-orange-text)" />
+          </Tooltip>
+          )}
+          {hasWebcamRecording && (
+          <Tooltip label="Webcam recording enabled" withinPortal position="bottom">
+            <IconCamera size={16} color="orange" />
+          </Tooltip>
+          )}
+          {modes?.developmentModeEnabled
+            ? <Tooltip label="Development mode enabled" withinPortal position="bottom"><IconSchema size={16} color="var(--mantine-color-green-text)" /></Tooltip>
+            : <Tooltip label="Development mode disabled" withinPortal position="bottom"><IconSchemaOff size={16} color="var(--mantine-color-red-text)" /></Tooltip>}
+          {modes?.dataSharingEnabled
+            ? <Tooltip label="Data sharing enabled" withinPortal position="bottom"><IconGraph size={16} color="var(--mantine-color-green-text)" /></Tooltip>
+            : <Tooltip label="Data sharing disabled" withinPortal position="bottom"><IconGraphOff size={16} color="var(--mantine-color-red-text)" /></Tooltip>}
+          {storageEngine?.getEngine() === 'localStorage'
+            ? <Tooltip label="Local storage enabled" withinPortal position="bottom"><IconDatabase size={16} color="var(--mantine-color-green-text)" /></Tooltip>
+            : storageEngine?.getEngine() === 'firebase'
+              ? <Tooltip label="Firebase enabled" withinPortal position="bottom"><IconBrandFirebase size={16} color="var(--mantine-color-green-text)" /></Tooltip>
+              : storageEngine?.getEngine() === 'supabase'
+                ? <Tooltip label="Supabase enabled" withinPortal position="bottom"><IconBrandSupabase size={16} color="var(--mantine-color-green-text)" /></Tooltip>
+                : <Tooltip label="Unknown storage engine enabled" withinPortal position="bottom"><IconDatabase size={16} color="var(--mantine-color-red-text)" /></Tooltip>}
+          {unmetRestrictions.length > 0 && (
+          <Tooltip label={restrictionsTooltip} multiline style={{ whiteSpace: 'pre-line' }} withinPortal position="bottom">
+            <IconBan size={16} color="var(--mantine-color-red-text)" />
+          </Tooltip>
+          )}
+        </Flex>
+      </Flex>
+
+      {minTime && maxTime
+              && (
+                <Text c="dimmed" mt={4}>
+                  Activity:
+                  {' '}
+                  {minTime}
+                  {' '}
+                  –
+                  {' '}
+                  {maxTime}
+                </Text>
+              )}
+
+      {conditions.length > 0 && (
+      <Flex direction="row" align="center" gap="xs" mt="sm" wrap="wrap">
+        {conditions.map((condition) => {
+          const conditionUrl = new URL(`${PREFIX}${url}`, window.location.origin);
+          conditionUrl.searchParams.set('condition', condition);
+          const conditionUrlString = conditionUrl.toString();
+
+          return (
+            <CopyButton key={condition} value={conditionUrlString}>
+              {({ copied, copy }) => (
+                <Tooltip label={copied ? 'Copied!' : 'Copy URL'}>
+                  <Badge
+                    size="sm"
+                    variant="light"
+                    rightSection={
+                              copied ? <IconCheck size={12} /> : <IconCopy size={12} />
+                            }
+                    onClick={copy}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {condition}
+                  </Badge>
+                </Tooltip>
+              )}
+            </CopyButton>
+          );
+        })}
+      </Flex>
+      )}
+
+      {/* Reload to keep each study launch isolated from the previous storage session. */}
+      <Flex direction="row" align="end" gap="sm" mt="md" wrap="wrap">
+        {conditions.length > 0 && (
+        <MultiSelect
+          value={selectedConditions}
+          data={conditionOptions}
+          w={260}
+          onChange={(value) => {
+            if (value.length === 0) {
+              setSelectedConditions(['default']);
+              return;
+            }
+
+            if (value.includes('default') && value.length > 1) {
+              setSelectedConditions(value.filter((condition) => condition !== 'default'));
+              return;
+            }
+
+            setSelectedConditions(value);
+          }}
+        />
+        )}
+        <Flex gap="sm" ml="auto" wrap="wrap" justify="flex-end" style={{ width: 'max-content', maxWidth: '100%' }}>
+          {canViewAnalytics && (
+          <Button
+            leftSection={<IconChartHistogram />}
+            variant="default"
+            onClick={() => window.location.assign(`${PREFIX}analysis/stats/${url}`)}
+          >
+            Analyze & Manage Study
+          </Button>
+          )}
+          <Button
+            variant="default"
+            component="a"
+            href={`${studyUrl}${studyUrl.includes('?') ? '&' : '?'}preview=true`}
+            onClick={() => startDesignerPreview(url)}
+          >
+            Preview
+          </Button>
+          <Button
+            leftSection={<IconListCheck />}
+            onClick={() => window.location.assign(studyUrl)}
+          >
+            Go to Study
+          </Button>
+        </Flex>
+      </Flex>
+    </Card>
+  );
+}
+
+function StudyCard({
+  configName,
+  config,
+  url,
+  modes,
+}: {
+  configName: string;
+  config: ParsedConfig<StudyConfig>;
+  url: string;
+  modes: StudyModes | null;
+}) {
+  const canViewAnalytics = !!modes?.dataSharingEnabled;
+
+  if (config.errors.length > 0) {
+    return (
+      <Card key={configName} shadow="sm" radius="md" my="sm" withBorder>
+        <Text size="md" fw="bold">{configName}</Text>
+        {canViewAnalytics && <ErrorLoadingConfig issues={config.errors} type="error" />}
+        {canViewAnalytics && config.warnings.length > 0 && (
+          <ErrorLoadingConfig issues={config.warnings} type="warning" />
+        )}
+      </Card>
+    );
+  }
+
+  return <ValidStudyCard configName={configName} config={config} url={url} modes={modes} canViewAnalytics={canViewAnalytics} />;
+}
+
+function StudyCards({
+  configNames,
+  studyConfigs,
+  modesByConfig,
+}: {
+  configNames: string[];
+  studyConfigs: Record<string, ParsedConfig<StudyConfig> | null>;
+  modesByConfig: Record<string, StudyModes | null>;
+}) {
+  return configNames.map((configName) => {
+    const config = studyConfigs[configName];
+    if (!config) {
+      return null;
+    }
+    const url = sanitizeStringForUrl(configName);
+    return <StudyCard key={configName} configName={configName} config={config} url={url} modes={modesByConfig[configName] ?? null} />;
+  });
+}
+
+export function ConfigSwitcher({
+  globalConfig,
+  studyConfigs,
+}: {
+  globalConfig: GlobalConfig;
+  studyConfigs: Record<string, ParsedConfig<StudyConfig> | null>;
+}) {
+  const { storageEngine } = useStorageEngine();
+  const { configsList } = globalConfig;
+
+  const [studyVisibility, setStudyVisibility] = useState<Record<string, boolean>>({});
+  const [modesByConfig, setModesByConfig] = useState<Record<string, StudyModes | null>>({});
+  const [modeLoadErrors, setModeLoadErrors] = useState<string[]>([]);
+  const [isLoadingVisibility, setIsLoadingVisibility] = useState(true);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function getVisibilitiesAndModes() {
+      if (storageEngine === undefined) {
+        setIsLoadingVisibility(true);
+        return;
+      }
+
+      setIsLoadingVisibility(true);
+      const visibility: Record<string, boolean> = {};
+      const modesMap: Record<string, StudyModes | null> = {};
+      const failedConfigNames: string[] = [];
+      await Promise.all(
+        configsList.map(async (configName) => {
+          if (storageEngine) {
+            try {
+              const [modes, hidden] = await Promise.all([
+                storageEngine.getAccessModes(configName),
+                storageEngine.getStudyHiddenFromLandingPage(configName),
+              ]);
+              visibility[configName] = !hidden;
+              modesMap[configName] = modes;
+            } catch (error) {
+              failedConfigNames.push(configName);
+              console.error(`Error loading settings for study ${configName}:`, error);
+            }
+          } else {
+            modesMap[configName] = null;
+          }
+        }),
+      );
+      if (!isCancelled) {
+        setStudyVisibility(visibility);
+        setModesByConfig(modesMap);
+        setModeLoadErrors(failedConfigNames);
+        setIsLoadingVisibility(false);
+      }
+    }
+    getVisibilitiesAndModes();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [configsList, storageEngine]);
+
+  const isLoadingStudyConfigs = useMemo(
+    () => configsList.some((configName) => !(configName in studyConfigs)),
+    [configsList, studyConfigs],
+  );
+  const isLoadingStudies = isLoadingVisibility || isLoadingStudyConfigs;
+  const configsFiltered = useMemo(() => configsList.filter((configName) => studyVisibility[configName]), [configsList, studyVisibility]);
+
+  const tabs = useMemo(() => {
+    const configuredTabs = globalConfig.tabs ?? [];
+    const tabDefinitions = configuredTabs.some(({ label }) => label === DEFAULT_TAB_LABEL)
+      ? configuredTabs
+      : [...configuredTabs, { label: DEFAULT_TAB_LABEL }];
+
+    return tabDefinitions.map((definition) => ({
+      ...definition,
+      configNames: configsFiltered.filter((configName) => (
+        (globalConfig.configs[configName].tab ?? DEFAULT_TAB_LABEL) === definition.label
+      )),
+    })).filter(({ configNames }) => configNames.length > 0).map((definition) => ({
+      ...definition,
+      // Mantine derives ARIA IDs from tab values, which must not contain whitespace.
+      value: encodeURIComponent(definition.label),
+    }));
+  }, [configsFiltered, globalConfig.configs, globalConfig.tabs]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab = tabs.find(({ label }) => label === requestedTab) ?? tabs[0];
+
+  return (
+    <AppShell.Main>
+      <Container size="sm" px={0}>
+        <Image
+          maw={150}
+          mx="auto"
+          mb="xl"
+          radius="md"
+          src={`${PREFIX}revisitAssets/revisitLogoSquare.svg`}
+          alt="reVISit"
+        />
+        {isLoadingStudies && (
+          <>
+            <Text c="dimmed" ta="center" mt="sm" mb="md">Loading studies...</Text>
+            <Card shadow="sm" radius="md" my="sm" withBorder p="lg">
+              <Skeleton height={28} width="55%" mb="md" />
+              <Skeleton height={16} mb="sm" />
+              <Skeleton height={16} mb="sm" />
+              <Skeleton height={16} width="90%" mb="xl" />
+              <Flex justify="space-between" align="center">
+                <Skeleton height={36} width={190} radius="md" />
+                <Skeleton height={36} width={140} radius="md" />
+              </Flex>
+            </Card>
+            <Card shadow="sm" radius="md" my="sm" withBorder p="lg">
+              <Skeleton height={28} width="45%" mb="md" />
+              <Skeleton height={16} mb="sm" />
+              <Skeleton height={16} mb="sm" />
+              <Skeleton height={16} width="85%" mb="xl" />
+              <Flex justify="space-between" align="center">
+                <Skeleton height={36} width={190} radius="md" />
+                <Skeleton height={36} width={140} radius="md" />
+              </Flex>
+            </Card>
+            <Card shadow="sm" radius="md" my="sm" withBorder p="lg">
+              <Skeleton height={28} width="50%" mb="md" />
+              <Skeleton height={16} mb="sm" />
+              <Skeleton height={16} mb="sm" />
+              <Skeleton height={16} width="88%" mb="xl" />
+              <Flex justify="space-between" align="center">
+                <Skeleton height={36} width={190} radius="md" />
+                <Skeleton height={36} width={140} radius="md" />
+              </Flex>
+            </Card>
+          </>
+        )}
+
+        {!isLoadingStudies && (
+          <>
+            {modeLoadErrors.length > 0 && (
+              <Text c="red" role="alert" mb="md">
+                Unable to load study visibility for:
+                {' '}
+                {modeLoadErrors.join(', ')}
+                . Check the storage connection and try again.
+              </Text>
+            )}
+            {tabs.length > 0 && (
+              <Tabs
+                variant="outline"
+                value={tab?.value ?? null}
+                onChange={(value) => {
+                  if (value === null) return;
+                  const nextParams = new URLSearchParams(searchParams);
+                  nextParams.set('tab', decodeURIComponent(value));
+                  setSearchParams(nextParams);
+                }}
+              >
+                <Tabs.List>
+                  {tabs.map(({ label, value }) => <Tabs.Tab key={label} value={value}>{label}</Tabs.Tab>)}
+                </Tabs.List>
+                {tabs.map(({
+                  label, value, description, configNames,
+                }) => (
+                  <Tabs.Panel key={label} value={value}>
+                    {description && (
+                      <Box c="dimmed" mt="sm">
+                        <ReactMarkdownWrapper text={description} />
+                      </Box>
+                    )}
+                    <StudyCards configNames={configNames} studyConfigs={studyConfigs} modesByConfig={modesByConfig} />
+                  </Tabs.Panel>
+                ))}
+              </Tabs>
+            )}
+
+            {configsFiltered.length === 0 && modeLoadErrors.length === 0 && (
+              <Text c="dimmed" ta="center" mt="xl">
+                No studies found. Studies can be added in your
+                {' '}
+                <Text span ff="monospace">global.json</Text>
+                .
+                <br />
+                Please refer to the
+                {' '}
+                <Anchor href="https://revisit.dev/docs/getting-started/your-first-study/" target="_blank">
+                  getting started guide
+                </Anchor>
+                {' '}
+                for more details.
+              </Text>
+            )}
+          </>
+        )}
+      </Container>
+    </AppShell.Main>
+  );
+}

@@ -1,0 +1,92 @@
+import { Box, Text } from '@mantine/core';
+import { useMemo } from 'react';
+import { useGlobalStore } from '../../store/hooks/useGlobalStore';
+import { resolveGlobalStoreResponses } from '../../utils/globalStore';
+import { ReactMarkdownWrapper } from '../ReactMarkdownWrapper';
+import { useStudyConfig } from '../../store/hooks/useStudyConfig';
+import { useStoredAnswer } from '../../store/hooks/useStoredAnswer';
+import { ResponseBlock } from '../response/ResponseBlock';
+import { useCurrentComponent } from '../../routes/utils';
+import { studyComponentToIndividualComponent } from '../../utils/handleComponentInheritance';
+import { compileTemplate } from '../../utils/handlebars';
+import { useTemplateAnswerContext } from '../../store/hooks/useTemplateAnswerContext';
+
+export function AppNavBar({
+  width, top, bottom, sidebarOpen,
+}: {
+  width: number,
+  top: number,
+  bottom: number,
+  sidebarOpen: boolean,
+}) {
+  // Get the config for the current step
+  const globalStore = useGlobalStore();
+  const studyConfig = useStudyConfig();
+  const currentComponent = useCurrentComponent();
+  const stepConfig = studyConfig.components[currentComponent];
+
+  const currentConfig = useMemo(() => {
+    if (stepConfig) {
+      return studyComponentToIndividualComponent(stepConfig, studyConfig);
+    }
+
+    return null;
+  }, [stepConfig, studyConfig]);
+
+  const status = useStoredAnswer();
+  const templateData = useTemplateAnswerContext();
+
+  const instructionParameters = useMemo(
+    () => status?.parameters ?? currentConfig?.parameters ?? {},
+    [status?.parameters, currentConfig?.parameters],
+  );
+
+  const runtimeConfig = useMemo(
+    () => (currentConfig ? { ...currentConfig, parameters: instructionParameters, response: resolveGlobalStoreResponses(currentConfig.response ?? [], globalStore) } : null),
+    [currentConfig, instructionParameters, globalStore],
+  );
+
+  const instruction = useMemo(
+    () => (templateData ? compileTemplate(runtimeConfig?.instruction || '', runtimeConfig?.parameters ?? {}, { data: templateData }) : ''),
+    [runtimeConfig, templateData],
+  );
+  const instructionLocation = useMemo(() => runtimeConfig?.instructionLocation ?? studyConfig.uiConfig.instructionLocation ?? 'sidebar', [runtimeConfig, studyConfig]);
+  const instructionInSideBar = instructionLocation === 'sidebar';
+
+  return runtimeConfig ? (
+    <Box
+      className="sidebar"
+      bg="light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
+      display={sidebarOpen ? 'block' : 'none'}
+      style={{
+        marginBottom: bottom,
+        marginTop: top,
+        position: 'relative',
+        zIndex: 0,
+      }}
+      w={width}
+      miw={width}
+    >
+      {instructionInSideBar && instruction !== '' && (
+        <Box
+          bg="light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-5))"
+          p="md"
+        >
+          <Text span c="light-dark(var(--mantine-color-orange-8), var(--mantine-color-orange-4))" fw={700} inherit>
+            Task:
+          </Text>
+          <ReactMarkdownWrapper text={instruction} />
+        </Box>
+      )}
+
+      <Box p="md">
+        <ResponseBlock
+          key={`${currentComponent}-sidebar-response-block`}
+          status={status}
+          config={runtimeConfig}
+          location="sidebar"
+        />
+      </Box>
+    </Box>
+  ) : null;
+}

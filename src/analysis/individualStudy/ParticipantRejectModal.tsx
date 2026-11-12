@@ -1,0 +1,253 @@
+import {
+  Modal, Text, TextInput, Flex, Button, Alert, Tooltip, Group,
+} from '@mantine/core';
+import { IconAlertTriangle } from '@tabler/icons-react';
+import {
+  useState, useCallback, useMemo, useEffect,
+} from 'react';
+import { useSearchParams, useParams } from 'react-router';
+import { useStorageEngine } from '../../storage/storageEngineHooks';
+import { ParticipantData } from '../../storage/types';
+import { useAuth } from '../../store/hooks/useAuth';
+
+export function ParticipantRejectModal({
+  selectedParticipants = [],
+  refresh,
+  footer = false,
+}: {
+  selectedParticipants: ParticipantData[];
+  refresh?: () => Promise<void>;
+  footer?: boolean;
+}) {
+  const { storageEngine } = useStorageEngine();
+  const { user } = useAuth();
+  const { studyId } = useParams();
+  const [searchParams] = useSearchParams();
+  const participantId = useMemo(() => searchParams.get('participantId') || undefined, [searchParams]);
+  const [currentParticipantData, setCurrentParticipantData] = useState<ParticipantData | null>(null);
+
+  useEffect(() => {
+    async function loadParticipantData() {
+      if (storageEngine && participantId && studyId) {
+        const participantData = await storageEngine.getParticipantData(participantId);
+        setCurrentParticipantData(participantData);
+      } else {
+        setCurrentParticipantData(null);
+      }
+    }
+    loadParticipantData();
+  }, [storageEngine, participantId, studyId]);
+
+  const refreshCurrentParticipantData = useCallback(async () => {
+    if (storageEngine && participantId && studyId) {
+      const data = await storageEngine.getParticipantData(participantId);
+      setCurrentParticipantData(data);
+    }
+  }, [storageEngine, participantId, studyId]);
+
+  const [modalRejectOpened, setModalRejectOpened] = useState(false);
+  const [modalUndoRejectOpened, setModalUndoRejectOpened] = useState(false);
+  const [rejectMessage, setRejectMessage] = useState<string>('');
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState(false);
+  const [undoRejectError, setUndoRejectError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  const currentAndSelectedParticipants = useMemo(() => [...selectedParticipants, currentParticipantData].filter((p) => p !== null) as ParticipantData[], [selectedParticipants, currentParticipantData]);
+  const rejectedParticipantsCount = useMemo(() => currentAndSelectedParticipants.filter((p) => p.rejected).length, [currentAndSelectedParticipants]);
+  const nonRejectedParticipantsCount = useMemo(() => currentAndSelectedParticipants.filter((p) => !p.rejected).length, [currentAndSelectedParticipants]);
+  const rejectParticipantLabel = `Reject Participant${nonRejectedParticipantsCount === 1 ? '' : 's'}`;
+  const undoRejectParticipantLabel = `Undo Reject Participant${rejectedParticipantsCount === 1 ? '' : 's'}`;
+
+  const rejectParticipant = useCallback(async (rejectParticipantId: string, reason: string) => {
+    if (storageEngine && studyId) {
+      const finalReason = reason === '' ? 'Rejected by admin' : reason;
+      await storageEngine.rejectParticipant(rejectParticipantId, finalReason);
+    }
+  }, [storageEngine, studyId]);
+
+  const undoRejectParticipant = useCallback(async (rejectParticipantId: string) => {
+    if (storageEngine && studyId) {
+      await storageEngine.undoRejectParticipant(rejectParticipantId);
+    }
+  }, [storageEngine, studyId]);
+
+  const handleRejectParticipant = useCallback(async () => {
+    setRejectError(null);
+    setRejecting(true);
+    const errors: string[] = [];
+    const participantIds = currentAndSelectedParticipants.length > 0
+      ? [...new Set(currentAndSelectedParticipants.filter((participant) => !participant.rejected).map((participant) => participant.participantId))]
+      : [participantId || ''];
+    try {
+      const results = await Promise.allSettled(participantIds.map((id) => rejectParticipant(id, rejectMessage)));
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const message = result.reason instanceof Error ? result.reason.message : 'The participant could not be rejected';
+          errors.push(`Participant ${participantIds[index]}: ${message}`);
+        }
+      });
+      if (refresh) await refresh();
+      if (currentParticipantData) await refreshCurrentParticipantData();
+    } catch (error) {
+      console.error('Failed to refresh participants after rejection:', error);
+      errors.push('The participant list could not be refreshed. Please reload to see the latest results.');
+    } finally {
+      setRejectError(errors.length ? errors.join(' ') : null);
+      if (errors.length === 0) {
+        setModalRejectOpened(false);
+        setRejectMessage('');
+      }
+      setRejecting(false);
+    }
+  }, [currentAndSelectedParticipants, refresh, currentParticipantData, rejectParticipant, rejectMessage, participantId, refreshCurrentParticipantData]);
+
+  const handleUndoRejectParticipant = useCallback(async () => {
+    setUndoRejectError(null);
+    setRestoring(true);
+    const errors: string[] = [];
+    const participantIds = currentAndSelectedParticipants.length > 0
+      ? [...new Set(currentAndSelectedParticipants.filter((participant) => participant.rejected).map((participant) => participant.participantId))]
+      : [participantId || ''];
+    try {
+      const results = await Promise.allSettled(participantIds.map(undoRejectParticipant));
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const message = result.reason instanceof Error ? result.reason.message : 'The participant could not be restored';
+          errors.push(`Participant ${participantIds[index]}: ${message}`);
+        }
+      });
+      // Wait for every attempt, then refresh even when only some succeeded.
+      if (refresh) await refresh();
+      if (currentParticipantData) await refreshCurrentParticipantData();
+    } catch (error) {
+      console.error('Failed to refresh participants after restoration:', error);
+      errors.push('The participant list could not be refreshed. Please reload to see the latest results.');
+    } finally {
+      setUndoRejectError(errors.length ? errors.join(' ') : null);
+      if (errors.length === 0) setModalUndoRejectOpened(false);
+      setRestoring(false);
+    }
+  }, [currentAndSelectedParticipants, refresh, currentParticipantData, undoRejectParticipant, participantId, refreshCurrentParticipantData]);
+
+  return (
+    <>
+      {(rejectedParticipantsCount > 0 || nonRejectedParticipantsCount > 0) && (
+        <Group gap="xs">
+          {rejectedParticipantsCount > 0 && (
+            <Tooltip label="Only admins can undo rejection" disabled={user.isAdmin}>
+              <Button disabled={!user.isAdmin} onClick={() => { setUndoRejectError(null); setModalUndoRejectOpened(true); }} color="blue">
+                {footer ? 'Undo Reject' : `${undoRejectParticipantLabel} (${rejectedParticipantsCount})`}
+              </Button>
+            </Tooltip>
+          )}
+          {nonRejectedParticipantsCount > 0 && (
+            <Tooltip label="Only admins can reject participants" disabled={user.isAdmin}>
+              <Button disabled={!user.isAdmin} onClick={() => { setRejectError(null); setModalRejectOpened(true); }} color="red">
+                {footer ? 'Reject' : `${rejectParticipantLabel} (${nonRejectedParticipantsCount})`}
+              </Button>
+            </Tooltip>
+          )}
+        </Group>
+      )}
+      <Modal
+        opened={modalRejectOpened}
+        onClose={() => { if (!rejecting) setModalRejectOpened(false); }}
+        title={footer
+          ? rejectParticipantLabel
+          : `${rejectParticipantLabel} (${nonRejectedParticipantsCount})`}
+      >
+        {rejectError && <Alert title="Unable to reject participants" color="red">{rejectError}</Alert>}
+        <Alert
+          icon={<IconAlertTriangle size={16} />}
+          title="Warning"
+          color="orange"
+          mb="md"
+        >
+          {currentAndSelectedParticipants.length > 0 && rejectedParticipantsCount > 0 && (
+            <>
+              {rejectedParticipantsCount}
+              {' '}
+              of your
+              {' '}
+              {currentAndSelectedParticipants.length}
+              {' '}
+              selected participant
+              {currentAndSelectedParticipants.length === 1 ? '' : 's'}
+              {' '}
+              {rejectedParticipantsCount === 1 ? 'has' : 'have'}
+              {' '}
+              already been rejected. Clicking reject participant
+              {nonRejectedParticipantsCount === 1 ? '' : 's'}
+              {' '}
+              will now reject
+              {' '}
+              {nonRejectedParticipantsCount === 1 ? 'this participant' : 'these participants'}
+              .
+              <br />
+              <br />
+            </>
+          )}
+          When participants are rejected, their sequences will be reassigned to other participants.
+        </Alert>
+        <TextInput
+          label="Please enter the reason for rejection."
+          onChange={(event) => setRejectMessage(event.target.value)}
+        />
+        <Flex mt="sm" justify="right">
+          <Button mr={5} variant="subtle" color="dark" onClick={() => { setModalRejectOpened(false); setRejectMessage(''); }} disabled={rejecting}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={handleRejectParticipant} loading={rejecting} disabled={rejecting}>
+            {rejectParticipantLabel}
+          </Button>
+        </Flex>
+      </Modal>
+
+      <Modal
+        opened={modalUndoRejectOpened}
+        onClose={() => { if (!restoring) setModalUndoRejectOpened(false); }}
+        title={footer
+          ? undoRejectParticipantLabel
+          : `${undoRejectParticipantLabel} (${rejectedParticipantsCount})`}
+      >
+        {undoRejectError && <Alert title="Unable to restore participants" color="red">{undoRejectError}</Alert>}
+        <Alert
+          icon={<IconAlertTriangle size={16} />}
+          title="Warning"
+          color="orange"
+          mb="md"
+        >
+          When you undo participant rejections, you may end up with unbalanced latin squares. This is because the rejected sequence may have been reassigned.
+        </Alert>
+        {currentAndSelectedParticipants.length > 0 ? (
+          <Text>
+            Are you sure you want to undo the rejection of
+            {' '}
+            {rejectedParticipantsCount === 1 ? 'this participant' : 'these participants'}
+            ?
+          </Text>
+        ) : (
+          <>
+            <Text>
+              The participant has been rejected.
+            </Text>
+            <Text>
+              Reason:
+              {' '}
+              {currentParticipantData?.rejected && typeof currentParticipantData.rejected === 'object' ? currentParticipantData.rejected.reason : 'No reason provided'}
+            </Text>
+          </>
+        )}
+        <Flex mt="sm" justify="right">
+          <Button mr={5} variant="subtle" color="dark" onClick={() => setModalUndoRejectOpened(false)} disabled={restoring}>
+            Cancel
+          </Button>
+          <Button color="blue" onClick={handleUndoRejectParticipant} loading={restoring} disabled={restoring}>
+            {undoRejectParticipantLabel}
+          </Button>
+        </Flex>
+      </Modal>
+    </>
+  );
+}

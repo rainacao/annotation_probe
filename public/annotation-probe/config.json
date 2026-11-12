@@ -1,0 +1,390 @@
+{
+  "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v3.0.0/src/parser/StudyConfigSchema.json",
+  "studyMetadata": {
+    "title": "VLAT Graph Viewing Study",
+    "version": "development",
+    "authors": [
+      "Annotation Probe"
+    ],
+    "organizations": [
+      "Annotation Probe"
+    ],
+    "date": "2026-11-11",
+    "description": "View a fixed sequence of VLAT graph images and record one response for each graph."
+  },
+  "uiConfig": {
+    "logoPath": "revisitAssets/revisitLogoSquare.svg",
+    "contactEmail": "study-contact@example.org",
+    "withProgressBar": true,
+    "withSidebar": true,
+    "autoDownloadStudy": true,
+    "autoDownloadTime": 5000
+  },
+  "components": {
+    "graph-01": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT1.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-02": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT2.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-03": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT3.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-04": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT4.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-05": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT5.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-06": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT6.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-07": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT7.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-08": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT8.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-09": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT9.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-10": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT10.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-11": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT11.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    },
+    "graph-12": {
+      "type": "react-component",
+      "path": "annotation-probe/AnnotationTrial.tsx",
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT12.png"
+      },
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "annotation",
+          "type": "reactive",
+          "prompt": "Drawing annotations",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        },
+        {
+          "id": "answer",
+          "type": "shortText",
+          "prompt": "What is your answer for this graph?",
+          "placeholder": "Enter your answer",
+          "location": "sidebar",
+          "required": true
+        }
+      ]
+    }
+  },
+  "sequence": {
+    "order": "fixed",
+    "components": [
+      "graph-01",
+      "graph-02",
+      "graph-03",
+      "graph-04",
+      "graph-05",
+      "graph-06",
+      "graph-07",
+      "graph-08",
+      "graph-09",
+      "graph-10",
+      "graph-11",
+      "graph-12"
+    ]
+  }
+}

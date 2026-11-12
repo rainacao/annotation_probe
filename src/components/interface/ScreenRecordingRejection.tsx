@@ -1,0 +1,22 @@
+import {
+  Modal, Text, Title, Stack,
+} from '@mantine/core';
+import { IconAlertTriangle } from '@tabler/icons-react';
+
+export function ScreenRecordingRejection() {
+  return (
+    <Modal opened onClose={() => {}} fullScreen withCloseButton={false}>
+      <Stack align="center" justify="center">
+        <IconAlertTriangle size={64} color="var(--mantine-color-orange-text)" />
+        <Title order={3}> Recording Stopped </Title>
+        <Text size="md" ta="center">
+          <>
+            Thank you for participating in this study. Recording was stopped and you will not be able to continue.
+            <br />
+            You may now close this page.
+          </>
+        </Text>
+      </Stack>
+    </Modal>
+  );
+}

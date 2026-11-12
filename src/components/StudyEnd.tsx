@@ -116,10 +116,11 @@ export function StudyEnd() {
     const participantIdToDownload = latestParticipant.participantId || participantId;
 
     if (!participantDataToDownload || !participantIdToDownload) {
-      return;
+      return false;
     }
 
     download(JSON.stringify(participantDataToDownload, null, 2), `${baseFilename}_${participantIdToDownload}.json`);
+    return true;
   }, [baseFilename, participantData, participantId, refreshParticipantData]);
 
   const retryFinalize = useCallback(() => {
@@ -134,6 +135,9 @@ export function StudyEnd() {
   const [delayCounter, setDelayCounter] = useState(
     Math.floor(autoDownloadDelay / 1000),
   );
+  // downloadParticipant refreshes participant state, which recreates it and re-runs the effect below;
+  // without this guard every re-run after the countdown downloaded the file again.
+  const autoDownloadStartedRef = useRef(false);
 
   useEffect(() => {
     if (completed) {
@@ -142,8 +146,14 @@ export function StudyEnd() {
       }, 1000);
 
       if (delayCounter <= 0) {
-        if (autoDownload) {
-          downloadParticipant();
+        if (autoDownload && !autoDownloadStartedRef.current) {
+          autoDownloadStartedRef.current = true;
+          downloadParticipant().then((downloaded) => {
+            // Allow a later re-run to retry if participant data was not ready yet.
+            if (!downloaded) {
+              autoDownloadStartedRef.current = false;
+            }
+          });
         }
         clearInterval(interval);
         return () => clearInterval(interval);

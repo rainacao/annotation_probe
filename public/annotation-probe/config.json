@@ -670,8 +670,7 @@
         "order": "fixed",
         "components": [
           "fixation-treemap",
-          "graph-treemap",
-          "tlx-treemap"
+          "graph-treemap"
         ]
       },
       {
@@ -679,8 +678,7 @@
         "order": "fixed",
         "components": [
           "fixation-stackedbar100",
-          "graph-stackedbar100",
-          "tlx-stackedbar100"
+          "graph-stackedbar100"
         ]
       },
       {
@@ -688,8 +686,7 @@
         "order": "fixed",
         "components": [
           "fixation-histogram",
-          "graph-histogram",
-          "tlx-histogram"
+          "graph-histogram"
         ]
       },
       {
@@ -697,8 +694,7 @@
         "order": "fixed",
         "components": [
           "fixation-choropleth",
-          "graph-choropleth",
-          "tlx-choropleth"
+          "graph-choropleth"
         ]
       },
       {
@@ -706,8 +702,7 @@
         "order": "fixed",
         "components": [
           "fixation-piechart",
-          "graph-piechart",
-          "tlx-piechart"
+          "graph-piechart"
         ]
       },
       {
@@ -715,8 +710,7 @@
         "order": "fixed",
         "components": [
           "fixation-bubblechart",
-          "graph-bubblechart",
-          "tlx-bubblechart"
+          "graph-bubblechart"
         ]
       },
       {
@@ -724,8 +718,7 @@
         "order": "fixed",
         "components": [
           "fixation-stackedbar",
-          "graph-stackedbar",
-          "tlx-stackedbar"
+          "graph-stackedbar"
         ]
       },
       {
@@ -733,8 +726,7 @@
         "order": "fixed",
         "components": [
           "fixation-linechart",
-          "graph-linechart",
-          "tlx-linechart"
+          "graph-linechart"
         ]
       },
       {
@@ -742,8 +734,7 @@
         "order": "fixed",
         "components": [
           "fixation-barchart",
-          "graph-barchart",
-          "tlx-barchart"
+          "graph-barchart"
         ]
       },
       {
@@ -751,8 +742,7 @@
         "order": "fixed",
         "components": [
           "fixation-areachart",
-          "graph-areachart",
-          "tlx-areachart"
+          "graph-areachart"
         ]
       },
       {
@@ -760,8 +750,7 @@
         "order": "fixed",
         "components": [
           "fixation-stackedarea",
-          "graph-stackedarea",
-          "tlx-stackedarea"
+          "graph-stackedarea"
         ]
       },
       {
@@ -769,8 +758,7 @@
         "order": "fixed",
         "components": [
           "fixation-scatterplot",
-          "graph-scatterplot",
-          "tlx-scatterplot"
+          "graph-scatterplot"
         ]
       }
     ]

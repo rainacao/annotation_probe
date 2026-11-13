@@ -116,11 +116,24 @@ export function StudyEnd() {
     const participantIdToDownload = latestParticipant.participantId || participantId;
 
     if (!participantDataToDownload || !participantIdToDownload) {
-      return;
+      return false;
     }
 
-    download(JSON.stringify(participantDataToDownload, null, 2), `${baseFilename}_${participantIdToDownload}.json`);
-  }, [baseFilename, participantData, participantId, refreshParticipantData]);
+    // Provenance is stored apart from the participant data; embed each task's graph in its answer (the legacy
+    // `provenanceGraph` field) so the downloaded file also carries the interaction history needed for replay.
+    const answersWithProvenance = Object.fromEntries(await Promise.all(
+      Object.entries(participantDataToDownload.answers).map(async ([identifier, answer]) => {
+        const provenanceGraph = await storageEngine?.getProvenance(identifier, participantIdToDownload).catch(() => null);
+        return [identifier, provenanceGraph ? { ...answer, provenanceGraph } : answer];
+      }),
+    ));
+
+    download(
+      JSON.stringify({ ...participantDataToDownload, answers: answersWithProvenance }, null, 2),
+      `${baseFilename}_${participantIdToDownload}.json`,
+    );
+    return true;
+  }, [baseFilename, participantData, participantId, refreshParticipantData, storageEngine]);
 
   const retryFinalize = useCallback(() => {
     finalizeLoopRef.current?.retryNow();
@@ -134,6 +147,9 @@ export function StudyEnd() {
   const [delayCounter, setDelayCounter] = useState(
     Math.floor(autoDownloadDelay / 1000),
   );
+  // downloadParticipant refreshes participant state, which recreates it and re-runs the effect below;
+  // without this guard every re-run after the countdown downloaded the file again.
+  const autoDownloadStartedRef = useRef(false);
 
   useEffect(() => {
     if (completed) {
@@ -142,8 +158,14 @@ export function StudyEnd() {
       }, 1000);
 
       if (delayCounter <= 0) {
-        if (autoDownload) {
-          downloadParticipant();
+        if (autoDownload && !autoDownloadStartedRef.current) {
+          autoDownloadStartedRef.current = true;
+          downloadParticipant().then((downloaded) => {
+            // Allow a later re-run to retry if participant data was not ready yet.
+            if (!downloaded) {
+              autoDownloadStartedRef.current = false;
+            }
+          });
         }
         clearInterval(interval);
         return () => clearInterval(interval);

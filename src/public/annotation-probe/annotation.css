@@ -1,7 +1,8 @@
+/* Matches the component's `maxHeight: 70vh`; a definite height lets the stage below bound the graph. */
 .annotation-trial {
   display: flex;
   width: 100%;
-  height: 100%;
+  height: 70vh;
   min-height: 0;
   flex-direction: column;
   gap: 0.75rem;
@@ -31,6 +32,11 @@
   cursor: pointer;
 }
 
+.annotation-actions button[aria-pressed="true"] {
+  border-color: var(--mantine-color-text);
+  font-weight: 600;
+}
+
 .annotation-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -41,16 +47,27 @@
   display: grid;
   width: 100%;
   min-height: 12rem;
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  padding-block: var(--annotation-margin);
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   overflow: hidden;
   --annotation-margin: 24px;
 }
 
+/* White surface behind the drawable area (graph plus margin); positioned by redraw() to match the canvas. */
+.annotation-backdrop {
+  position: absolute;
+  background: #ffffff;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .annotation-image-stage img {
+  position: relative;
   display: block;
   max-width: calc(100% - 2 * var(--annotation-margin));
-  max-height: max(0px, calc(70vh - 2 * var(--annotation-margin)));
+  max-height: 100%;
   object-fit: contain;
   user-select: none;
 }
@@ -60,4 +77,52 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Excalidraw covers the whole stage with a transparent canvas so participants can draw around the graph. */
+.excalidraw-layer .excalidraw,
+.excalidraw-layer .excalidraw .excalidraw-container {
+  --color-surface-lowest: transparent;
+  background: transparent;
+}
+
+.excalidraw-layer .excalidraw .scroll-back-to-content,
+.excalidraw-layer .excalidraw .layer-ui__wrapper__footer,
+.excalidraw-layer .excalidraw .HelpDialog {
+  display: none;
+}
+
+.fixation-placeholder {
+  visibility: hidden;
+}
+
+.fixation-cross {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.fixation-cross::before,
+.fixation-cross::after {
+  position: absolute;
+  background: #000000;
+  content: "";
+}
+
+.fixation-cross::before {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  transform: translateY(-50%);
+}
+
+.fixation-cross::after {
+  top: 0;
+  left: 50%;
+  width: 4px;
+  height: 100%;
+  transform: translateX(-50%);
 }

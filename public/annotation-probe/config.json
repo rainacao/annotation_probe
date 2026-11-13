@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v3.0.0/src/parser/StudyConfigSchema.json",
   "studyMetadata": {
-    "title": "VLAT Graph Viewing Study",
+    "title": "Mini-VLAT Annotation Study",
     "version": "development",
     "authors": [
       "Annotation Probe"
@@ -10,7 +10,7 @@
       "Annotation Probe"
     ],
     "date": "2026-11-11",
-    "description": "View a fixed sequence of VLAT graph images and record one response for each graph."
+    "description": "The 12 Mini-VLAT items (Pandey & Ottley, 2023) with multiple-choice answers and pointer annotation. Each item is preceded by a fixation-cross pupil baseline and followed by a NASA-TLX."
   },
   "uiConfig": {
     "logoPath": "revisitAssets/revisitLogoSquare.svg",
@@ -18,373 +18,749 @@
     "withProgressBar": true,
     "withSidebar": true,
     "autoDownloadStudy": true,
-    "autoDownloadTime": 5000
+    "autoDownloadTime": 5000,
+    "stylesheetPath": "annotation-probe/study.css",
+    "nextButtonLocation": "sidebar"
+  },
+  "baseComponents": {
+    "fixation": {
+      "type": "react-component",
+      "path": "annotation-probe/FixationBaseline.tsx",
+      "description": "Fixation-cross pupil baseline on neutral grey; auto-advances after durationMs.",
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "baseline",
+          "type": "reactive",
+          "prompt": "Fixation baseline",
+          "location": "sidebar",
+          "hidden": true,
+          "required": true
+        }
+      ],
+      "stylesheetPath": "annotation-probe/fixation.css",
+      "parameters": {
+        "durationMs": 5000
+      }
+    },
+    "graph": {
+      "type": "react-component",
+      "path": "annotation-probe/ExcalidrawTrial.tsx",
+      "style": {
+        "maxWidth": "100%",
+        "maxHeight": "70vh"
+      },
+      "response": [
+        {
+          "id": "answer",
+          "type": "radio",
+          "prompt": "",
+          "location": "sidebar",
+          "required": true,
+          "options": []
+        },
+        {
+          "id": "drawing",
+          "type": "reactive",
+          "prompt": "Drawing scene",
+          "location": "sidebar",
+          "hidden": true,
+          "required": false
+        }
+      ],
+      "description": "Mini-VLAT item with an Excalidraw drawing layer over the graph; per-item question, options, and answer key come from the component. To use the pointer event log instead, set path to annotation-probe/AnnotationTrial.tsx and the reactive response id to annotationEvents."
+    },
+    "nasa-tlx": {
+      "type": "questionnaire",
+      "description": "NASA Task Load Index (raw TLX, 0-100 in steps of 5).",
+      "instruction": "Rate the graph task you just completed on each scale.",
+      "instructionLocation": "aboveStimulus",
+      "withSidebar": false,
+      "nextButtonLocation": "belowStimulus",
+      "response": [
+        {
+          "id": "mental-demand",
+          "type": "slider",
+          "prompt": "Mental Demand: How mentally demanding was the task?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Low",
+              "value": 0
+            },
+            {
+              "label": "High",
+              "value": 100
+            }
+          ],
+          "default": 0
+        },
+        {
+          "id": "physical-demand",
+          "type": "slider",
+          "prompt": "Physical Demand: How physically demanding was the task?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Low",
+              "value": 0
+            },
+            {
+              "label": "High",
+              "value": 100
+            }
+          ],
+          "default": 0
+        },
+        {
+          "id": "temporal-demand",
+          "type": "slider",
+          "prompt": "Temporal Demand: How hurried or rushed was the pace of the task?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Low",
+              "value": 0
+            },
+            {
+              "label": "High",
+              "value": 100
+            }
+          ],
+          "default": 0
+        },
+        {
+          "id": "performance",
+          "type": "slider",
+          "prompt": "Performance: How successful were you in accomplishing what you were asked to do?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Good",
+              "value": 0
+            },
+            {
+              "label": "Poor",
+              "value": 100
+            }
+          ],
+          "default": 0
+        },
+        {
+          "id": "effort",
+          "type": "slider",
+          "prompt": "Effort: How hard did you have to work to accomplish your level of performance?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Low",
+              "value": 0
+            },
+            {
+              "label": "High",
+              "value": 100
+            }
+          ],
+          "default": 0
+        },
+        {
+          "id": "frustration",
+          "type": "slider",
+          "prompt": "Frustration: How insecure, discouraged, irritated, stressed, and annoyed were you?",
+          "location": "belowStimulus",
+          "required": true,
+          "tlxStyle": true,
+          "step": 5,
+          "spacing": 5,
+          "options": [
+            {
+              "label": "Low",
+              "value": 0
+            },
+            {
+              "label": "High",
+              "value": 100
+            }
+          ],
+          "default": 0
+        }
+      ]
+    }
   },
   "components": {
-    "graph-01": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "fixation-treemap": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT1.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/TreeMap.png"
+      }
+    },
+    "graph-treemap": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "treemap"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/TreeMap.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "eBay is nested in the Software category.",
+          "options": [
+            "True",
+            "False",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "False"
         }
       ]
     },
-    "graph-02": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-treemap": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-stackedbar100": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT2.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Stacked100.png"
+      }
+    },
+    "graph-stackedbar100": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "stackedbar100"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Stacked100.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Which country has the lowest proportion of Gold medals?",
+          "options": [
+            "USA",
+            "Great Britain",
+            "Japan",
+            "Australia",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "Great Britain"
         }
       ]
     },
-    "graph-03": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-stackedbar100": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-histogram": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT3.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Histogram.png"
+      }
+    },
+    "graph-histogram": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "histogram"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Histogram.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What distance have customers traveled in the taxi the most?",
+          "options": [
+            "50-70km",
+            "30-40km",
+            "20-30km",
+            "50-60km",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "30-40km"
         }
       ]
     },
-    "graph-04": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-histogram": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-choropleth": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT4.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Choropleth.png"
+      }
+    },
+    "graph-choropleth": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "choropleth"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Choropleth.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "In 2020, the unemployment rate for Washington (WA) was higher than that of Wisconsin (WI)?",
+          "options": [
+            "True",
+            "False",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "True"
         }
       ]
     },
-    "graph-05": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-choropleth": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-piechart": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT5.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/PieChart.png"
+      }
+    },
+    "graph-piechart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "piechart"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/PieChart.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What is the approximate global smartphone market share of Samsung?",
+          "options": [
+            "17.6%",
+            "25.3%",
+            "10.9%",
+            "35.2%",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "17.6%"
         }
       ]
     },
-    "graph-06": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-piechart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-bubblechart": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT6.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BubbleChart.png"
+      }
+    },
+    "graph-bubblechart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "bubblechart"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BubbleChart.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "Which city's metro system has the largest number of stations?",
+          "options": [
+            "Beijing",
+            "Shanghai",
+            "London",
+            "Seoul",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "Shanghai"
         }
       ]
     },
-    "graph-07": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-bubblechart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-stackedbar": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT7.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedBar.png"
+      }
+    },
+    "graph-stackedbar": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "stackedbar"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedBar.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What is the cost of peanuts in Seoul?",
+          "options": [
+            "$5.2",
+            "$6.1",
+            "$7.5",
+            "$4.5",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "$6.1"
         }
       ]
     },
-    "graph-08": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-stackedbar": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-linechart": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT8.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/LineChart.png"
+      }
+    },
+    "graph-linechart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "linechart"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/LineChart.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What was the price of a barrel of oil in February 2020?",
+          "options": [
+            "$50.54",
+            "$47.02",
+            "$42.34",
+            "$43.48",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "$50.54"
         }
       ]
     },
-    "graph-09": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-linechart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-barchart": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT9.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BarChart.png"
+      }
+    },
+    "graph-barchart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "barchart"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/BarChart.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What is the average internet speed in Japan?",
+          "options": [
+            "42.30 Mbps",
+            "40.51 Mbps",
+            "35.25 Mbps",
+            "16.16 Mbps",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "40.51 Mbps"
         }
       ]
     },
-    "graph-10": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-barchart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-areachart": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT10.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/AreaChart.png"
+      }
+    },
+    "graph-areachart": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "areachart"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/AreaChart.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What was the average price of a pound of coffee in October 2019?",
+          "options": [
+            "0.71",
+            "0.90",
+            "0.80",
+            "0.63",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "0.71"
         }
       ]
     },
-    "graph-11": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-areachart": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-stackedarea": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT11.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedArea.png"
+      }
+    },
+    "graph-stackedarea": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "stackedarea"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/StackedArea.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "What was the ratio of girls named \"Isla\" to girls named \"Amelia\" in 2012 in the UK?",
+          "options": [
+            "1 to 1",
+            "1 to 2",
+            "1 to 3",
+            "1 to 4",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "1 to 2"
         }
       ]
     },
-    "graph-12": {
-      "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+    "tlx-stackedarea": {
+      "baseComponent": "nasa-tlx"
+    },
+    "fixation-scatterplot": {
+      "baseComponent": "fixation",
       "parameters": {
-        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/library-assets/v1/vlat/VLAT12.png"
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Scatterplot.png"
+      }
+    },
+    "graph-scatterplot": {
+      "baseComponent": "graph",
+      "meta": {
+        "chartType": "scatterplot"
       },
-      "style": {
-        "maxWidth": "100%",
-        "maxHeight": "70vh"
+      "parameters": {
+        "imageUrl": "https://raw.githubusercontent.com/revisit-studies/study/0c1cc9379a12cfe6b273d6bb8cd7e60e0d70a1b7/public/libraries/mini-vlat/assets/Scatterplot.png"
       },
       "response": [
         {
-          "id": "annotation",
-          "type": "reactive",
-          "prompt": "Drawing annotations",
-          "location": "sidebar",
-          "hidden": true,
-          "required": false
-        },
+          "id": "answer",
+          "type": "radio",
+          "prompt": "There is a negative relationship between the height and the weight of the 85 males.",
+          "options": [
+            "True",
+            "False",
+            "Skip"
+          ]
+        }
+      ],
+      "correctAnswer": [
         {
           "id": "answer",
-          "type": "shortText",
-          "prompt": "What is your answer for this graph?",
-          "placeholder": "Enter your answer",
-          "location": "sidebar",
-          "required": true
+          "answer": "False"
         }
       ]
+    },
+    "tlx-scatterplot": {
+      "baseComponent": "nasa-tlx"
     }
   },
   "sequence": {
     "order": "fixed",
     "components": [
-      "graph-01",
-      "graph-02",
-      "graph-03",
-      "graph-04",
-      "graph-05",
-      "graph-06",
-      "graph-07",
-      "graph-08",
-      "graph-09",
-      "graph-10",
-      "graph-11",
-      "graph-12"
+      {
+        "id": "treemap",
+        "order": "fixed",
+        "components": [
+          "fixation-treemap",
+          "graph-treemap"
+        ]
+      },
+      {
+        "id": "stackedbar100",
+        "order": "fixed",
+        "components": [
+          "fixation-stackedbar100",
+          "graph-stackedbar100"
+        ]
+      },
+      {
+        "id": "histogram",
+        "order": "fixed",
+        "components": [
+          "fixation-histogram",
+          "graph-histogram"
+        ]
+      },
+      {
+        "id": "choropleth",
+        "order": "fixed",
+        "components": [
+          "fixation-choropleth",
+          "graph-choropleth"
+        ]
+      },
+      {
+        "id": "piechart",
+        "order": "fixed",
+        "components": [
+          "fixation-piechart",
+          "graph-piechart"
+        ]
+      },
+      {
+        "id": "bubblechart",
+        "order": "fixed",
+        "components": [
+          "fixation-bubblechart",
+          "graph-bubblechart"
+        ]
+      },
+      {
+        "id": "stackedbar",
+        "order": "fixed",
+        "components": [
+          "fixation-stackedbar",
+          "graph-stackedbar"
+        ]
+      },
+      {
+        "id": "linechart",
+        "order": "fixed",
+        "components": [
+          "fixation-linechart",
+          "graph-linechart"
+        ]
+      },
+      {
+        "id": "barchart",
+        "order": "fixed",
+        "components": [
+          "fixation-barchart",
+          "graph-barchart"
+        ]
+      },
+      {
+        "id": "areachart",
+        "order": "fixed",
+        "components": [
+          "fixation-areachart",
+          "graph-areachart"
+        ]
+      },
+      {
+        "id": "stackedarea",
+        "order": "fixed",
+        "components": [
+          "fixation-stackedarea",
+          "graph-stackedarea"
+        ]
+      },
+      {
+        "id": "scatterplot",
+        "order": "fixed",
+        "components": [
+          "fixation-scatterplot",
+          "graph-scatterplot"
+        ]
+      }
     ]
   }
 }

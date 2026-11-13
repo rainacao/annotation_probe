@@ -119,9 +119,21 @@ export function StudyEnd() {
       return false;
     }
 
-    download(JSON.stringify(participantDataToDownload, null, 2), `${baseFilename}_${participantIdToDownload}.json`);
+    // Provenance is stored apart from the participant data; embed each task's graph in its answer (the legacy
+    // `provenanceGraph` field) so the downloaded file also carries the interaction history needed for replay.
+    const answersWithProvenance = Object.fromEntries(await Promise.all(
+      Object.entries(participantDataToDownload.answers).map(async ([identifier, answer]) => {
+        const provenanceGraph = await storageEngine?.getProvenance(identifier, participantIdToDownload).catch(() => null);
+        return [identifier, provenanceGraph ? { ...answer, provenanceGraph } : answer];
+      }),
+    ));
+
+    download(
+      JSON.stringify({ ...participantDataToDownload, answers: answersWithProvenance }, null, 2),
+      `${baseFilename}_${participantIdToDownload}.json`,
+    );
     return true;
-  }, [baseFilename, participantData, participantId, refreshParticipantData]);
+  }, [baseFilename, participantData, participantId, refreshParticipantData, storageEngine]);
 
   const retryFinalize = useCallback(() => {
     finalizeLoopRef.current?.retryNow();

@@ -10,8 +10,11 @@ Each item is the trio fixation-<item> -> graph-<item> -> tlx-<item> (see SPEC.md
     participants.csv       one row per participant (device, screen, completion)
     trials.csv             one row per participant x item: timing, answer, correctness,
                            fixation baseline, NASA-TLX, and mark counts
-    annotation_marks.csv   one row per drawn mark, with whether it was kept, undone, or cleared
+    annotation_marks.csv   one row per drawn mark, with whether it was kept or removed
     annotation_points.csv  one row per point, in image fractions and viewport CSS px
+
+Marks are read from either graph response format: the Excalidraw scene (`drawing`, from
+ExcalidrawTrial.tsx) or the pointer event log (`annotationEvents`, from AnnotationTrial.tsx).
 
 Files that are not participant data are skipped with a warning. If the same participant
 appears in several files (e.g. repeated downloads), the copy with the most answers is kept.
@@ -101,6 +104,58 @@ def replay_marks(events: list[Any]) -> dict[int, tuple[str, int | None]]:
     return status
 
 
+def marks_from_events(events: list[Any]) -> list[dict[str, Any]]:
+    """Marks from AnnotationTrial's annotationEvents log; points carry their own timestamps."""
+    statuses = replay_marks(events)
+    marks = []
+    for event_index in sorted(statuses):
+        start, _, mark = events[event_index]
+        status, removed_at = statuses[event_index]
+        marks.append({
+            "mark_id": event_index,
+            "start": start,
+            "end": mark["end"],
+            "status": status,
+            "removed_at": removed_at,
+            "image": mark["image"],
+            "points": [tuple(point) for point in mark["points"]],
+        })
+    return marks
+
+
+def marks_from_drawing(scene: dict[str, Any]) -> list[dict[str, Any]]:
+    """Marks from ExcalidrawTrial's scene. Element coordinates are CSS px from the stage's top-left
+    (the view is locked), drawn against `image` (stage-relative); points have no timestamps.
+    Marks removed by undo or clear are only in markTimes, so their points are not available."""
+    image_left, image_top, width, height = scene["image"]
+    stage_left, stage_top = scene["stage"][:2]
+    viewport_image = [round(stage_left + image_left, 1), round(stage_top + image_top, 1), width, height]
+    elements = {element["id"]: element for element in scene.get("elements", []) if element.get("type") == "freedraw"}
+    times = scene.get("markTimes") or {}
+    marks = []
+    for mark_id in sorted(set(times) | set(elements), key=lambda key: times.get(key, {}).get("start", 0)):
+        element = elements.get(mark_id)
+        timing = times.get(mark_id, {})
+        if element is None:
+            status, points = "removed", []
+        else:
+            status = "erased" if element.get("isDeleted") else "kept"
+            points = [
+                (None, round((element["x"] + px - image_left) / width, 4), round((element["y"] + py - image_top) / height, 4))
+                for px, py in element["points"]
+            ]
+        marks.append({
+            "mark_id": mark_id,
+            "start": timing.get("start"),
+            "end": timing.get("end"),
+            "status": status,
+            "removed_at": timing.get("erasedAt"),
+            "image": viewport_image,
+            "points": points,
+        })
+    return marks
+
+
 def build_tables(participants: dict[str, tuple[Path, dict[str, Any]]]) -> dict[str, list[dict[str, Any]]]:
     tables: dict[str, list[dict[str, Any]]] = {
         "participants": [],
@@ -144,10 +199,12 @@ def build_tables(participants: dict[str, tuple[Path, dict[str, Any]]]) -> dict[s
             graph_answer = graph.get("answer", {})
             response = graph_answer.get("answer")
             correct_answer = next((entry.get("answer") for entry in graph.get("correctAnswer", []) if entry.get("id") == "answer"), None)
-            events = graph_answer.get("annotationEvents") or []
+            if isinstance(graph_answer.get("drawing"), dict) and graph_answer["drawing"].get("image"):
+                marks = marks_from_drawing(graph_answer["drawing"])
+            else:
+                marks = marks_from_events(graph_answer.get("annotationEvents") or [])
             if graph_answer.get("annotation") is not None:
-                warn(f"participant {participant_id}, {item}: old 'annotation' format is not parsed; only 'annotationEvents' is")
-            marks = replay_marks(events)
+                warn(f"participant {participant_id}, {item}: old 'annotation' format is not parsed")
             baseline = fixation.get("answer", {}).get("baseline") or {}
             tlx_values = tlx.get("answer", {}) if is_completed(tlx) else {}
             tlx_scores = [tlx_values[scale] for scale in TLX_SCALES if isinstance(tlx_values.get(scale), (int, float))]
@@ -165,7 +222,7 @@ def build_tables(participants: dict[str, tuple[Path, dict[str, Any]]]) -> dict[s
                 "correct": None if response is None or correct_answer is None else response == correct_answer,
                 "skipped": response == SKIP_ANSWER,
                 "marks_drawn": len(marks),
-                "marks_kept": sum(1 for status, _ in marks.values() if status == "kept"),
+                "marks_kept": sum(1 for mark in marks if mark["status"] == "kept"),
                 "baseline_cross_shown": baseline.get("crossShownAt"),
                 "baseline_cross_hidden": baseline.get("crossHiddenAt"),
                 "baseline_duration_ms": baseline.get("durationMs"),
@@ -176,22 +233,21 @@ def build_tables(participants: dict[str, tuple[Path, dict[str, Any]]]) -> dict[s
                 "image_url": graph.get("parameters", {}).get("imageUrl"),
             })
 
-            for mark_number, event_index in enumerate(sorted(marks), start=1):
-                start, _, mark = events[event_index]
-                status, removed_at = marks[event_index]
+            for mark_number, mark in enumerate(marks, start=1):
+                start, status = mark["start"], mark["status"]
                 left, top, width, height = mark["image"]
                 tables["annotation_marks"].append({
                     "participant_id": participant_id,
                     "item": item,
                     "mark": mark_number,
-                    "event_index": event_index,
+                    "mark_id": mark["mark_id"],
                     "start": start,
                     "end": mark["end"],
-                    "duration_ms": mark["end"] - start,
-                    "ms_since_graph_start": start - graph["startTime"] if graph.get("startTime") else None,
+                    "duration_ms": mark["end"] - start if start is not None and mark["end"] is not None else None,
+                    "ms_since_graph_start": start - graph["startTime"] if start is not None and graph.get("startTime") else None,
                     "n_points": len(mark["points"]),
                     "status": status,
-                    "removed_at": removed_at,
+                    "removed_at": mark["removed_at"],
                     "image_left": left,
                     "image_top": top,
                     "image_width": width,

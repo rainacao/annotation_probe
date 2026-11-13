@@ -112,6 +112,28 @@ class CombineParticipantsTest(unittest.TestCase):
         self.assertEqual([row["in_image"] for row in points], ["True", "False"])
         self.assertEqual((points[1]["screen_x"], points[1]["screen_y"]), ("520.0", "110.0"))
 
+    def test_marks_from_drawing(self) -> None:
+        scene = {
+            "image": [24.0, 50.0, 400.0, 300.0],
+            "stage": [300.0, 100.0, 450.0, 400.0],
+            "elements": [
+                {"id": "kept", "type": "freedraw", "x": 124.0, "y": 80.0, "points": [[0, 0], [200, 120]], "isDeleted": False},
+                {"id": "erased", "type": "freedraw", "x": 0.0, "y": 0.0, "points": [[0, 0]], "isDeleted": True},
+            ],
+            "markTimes": {
+                "erased": {"start": 1_050, "end": 1_060, "erasedAt": 1_900},
+                "kept": {"start": 1_100, "end": 1_300},
+                "undone": {"start": 1_400, "end": 1_450},
+            },
+        }
+        marks = combine.marks_from_drawing(scene)
+        self.assertEqual([(mark["mark_id"], mark["status"], mark["removed_at"]) for mark in marks], [
+            ("erased", "erased", 1_900), ("kept", "kept", None), ("undone", "removed", None),
+        ])
+        self.assertEqual(marks[1]["points"], [(None, 0.25, 0.1), (None, 0.75, 0.5)])
+        self.assertEqual(marks[1]["image"], [324.0, 150.0, 400.0, 300.0])
+        self.assertEqual(marks[0]["points"], [(None, -0.06, -0.1667)])
+
 
 if __name__ == "__main__":
     unittest.main()

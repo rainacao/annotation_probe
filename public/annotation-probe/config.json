@@ -669,7 +669,6 @@
         "id": "treemap",
         "order": "fixed",
         "components": [
-          "fixation-treemap",
           "graph-treemap"
         ]
       },
@@ -677,7 +676,6 @@
         "id": "stackedbar100",
         "order": "fixed",
         "components": [
-          "fixation-stackedbar100",
           "graph-stackedbar100"
         ]
       },
@@ -685,7 +683,6 @@
         "id": "histogram",
         "order": "fixed",
         "components": [
-          "fixation-histogram",
           "graph-histogram"
         ]
       },
@@ -693,7 +690,6 @@
         "id": "choropleth",
         "order": "fixed",
         "components": [
-          "fixation-choropleth",
           "graph-choropleth"
         ]
       },
@@ -701,7 +697,6 @@
         "id": "piechart",
         "order": "fixed",
         "components": [
-          "fixation-piechart",
           "graph-piechart"
         ]
       },
@@ -709,7 +704,6 @@
         "id": "bubblechart",
         "order": "fixed",
         "components": [
-          "fixation-bubblechart",
           "graph-bubblechart"
         ]
       },
@@ -717,7 +711,6 @@
         "id": "stackedbar",
         "order": "fixed",
         "components": [
-          "fixation-stackedbar",
           "graph-stackedbar"
         ]
       },
@@ -725,7 +718,6 @@
         "id": "linechart",
         "order": "fixed",
         "components": [
-          "fixation-linechart",
           "graph-linechart"
         ]
       },
@@ -733,7 +725,6 @@
         "id": "barchart",
         "order": "fixed",
         "components": [
-          "fixation-barchart",
           "graph-barchart"
         ]
       },
@@ -741,7 +732,6 @@
         "id": "areachart",
         "order": "fixed",
         "components": [
-          "fixation-areachart",
           "graph-areachart"
         ]
       },
@@ -749,7 +739,6 @@
         "id": "stackedarea",
         "order": "fixed",
         "components": [
-          "fixation-stackedarea",
           "graph-stackedarea"
         ]
       },
@@ -757,7 +746,6 @@
         "id": "scatterplot",
         "order": "fixed",
         "components": [
-          "fixation-scatterplot",
           "graph-scatterplot"
         ]
       }

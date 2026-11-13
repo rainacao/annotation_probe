@@ -48,7 +48,7 @@
     },
     "graph": {
       "type": "react-component",
-      "path": "annotation-probe/AnnotationTrial.tsx",
+      "path": "annotation-probe/ExcalidrawTrial.tsx",
       "style": {
         "maxWidth": "100%",
         "maxHeight": "70vh"
@@ -63,15 +63,15 @@
           "options": []
         },
         {
-          "id": "annotationEvents",
+          "id": "drawing",
           "type": "reactive",
-          "prompt": "Annotation events",
+          "prompt": "Drawing scene",
           "location": "sidebar",
           "hidden": true,
           "required": false
         }
       ],
-      "description": "Mini-VLAT item with pointer annotation; per-item question, options, and answer key come from the component."
+      "description": "Mini-VLAT item with an Excalidraw drawing layer over the graph; per-item question, options, and answer key come from the component. To use the pointer event log instead, set path to annotation-probe/AnnotationTrial.tsx and the reactive response id to annotationEvents."
     },
     "nasa-tlx": {
       "type": "questionnaire",

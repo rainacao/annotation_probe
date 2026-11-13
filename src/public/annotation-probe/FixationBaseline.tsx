@@ -4,6 +4,7 @@ import {
 import { useIsAnalysis } from '../../store/hooks/useIsAnalysis';
 import { useNextStep } from '../../store/hooks/useNextStep';
 import type { StimulusParams } from '../../store/types';
+import { TrialControls } from './TrialControls';
 import './annotation.css';
 
 interface FixationParameters {
@@ -88,13 +89,7 @@ export default function FixationBaseline({
   return (
     <section className="annotation-trial" aria-label="Fixation baseline">
       {/* Mirrors the trial's controls row so the stage below starts at the same height. */}
-      <div className="annotation-controls fixation-placeholder" aria-hidden="true">
-        <span>Draw on the graph with your mouse, finger, or stylus.</span>
-        <div className="annotation-actions">
-          <button type="button" tabIndex={-1}>Undo</button>
-          <button type="button" tabIndex={-1}>Clear</button>
-        </div>
-      </div>
+      <TrialControls placeholder />
       <div ref={stageRef} className="annotation-image-stage">
         <img ref={imageRef} className="fixation-placeholder" src={parameters.imageUrl} alt="" draggable={false} onLoad={measure} />
         {cross && (

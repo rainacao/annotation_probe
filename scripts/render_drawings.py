@@ -39,16 +39,23 @@ STROKE_WIDTH_CSS_PX = 4.5
 MARGIN_CSS_PX = 24
 
 
+def on_white(image: Image.Image) -> Image.Image:
+    """Flatten transparency onto white, as the graph appears on the study's white drawable area."""
+    rgba = image.convert("RGBA")
+    background = Image.new("RGBA", rgba.size, (*WHITE, 255))
+    return Image.alpha_composite(background, rgba).convert("RGB")
+
+
 def load_image(url: str, cache: Path) -> Image.Image:
     """Graph image from a URL (cached) or a path under public/."""
     if not url.startswith(("http://", "https://")):
-        return Image.open(PUBLIC / url.lstrip("/")).convert("RGB")
+        return on_white(Image.open(PUBLIC / url.lstrip("/")))
     cache.mkdir(parents=True, exist_ok=True)
     cached = cache / (hashlib.sha256(url.encode()).hexdigest()[:16] + Path(url).suffix)
     if not cached.exists():
         with urllib.request.urlopen(url, timeout=30) as response:
             cached.write_bytes(response.read())
-    return Image.open(io.BytesIO(cached.read_bytes())).convert("RGB")
+    return on_white(Image.open(io.BytesIO(cached.read_bytes())))
 
 
 def trial_marks(graph_answer: dict[str, Any]) -> list[dict[str, Any]]:

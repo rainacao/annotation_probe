@@ -63,6 +63,12 @@ class RenderDrawingsTest(unittest.TestCase):
         self.assertEqual(png.getpixel((margin + 100, margin + 10)), (0, 200, 0))  # graph elsewhere
         self.assertEqual(png.getpixel((1, 1)), render.STUDY_GREY)
 
+    def test_transparent_graph_is_flattened_onto_white(self) -> None:
+        image = Image.new("RGBA", (4, 2), (0, 0, 0, 0))
+        image.putpixel((0, 0), (255, 0, 0, 255))
+        flat = render.on_white(image)
+        self.assertEqual((flat.mode, flat.getpixel((0, 0)), flat.getpixel((3, 1))), ("RGB", (255, 0, 0), render.WHITE))
+
 
 if __name__ == "__main__":
     unittest.main()

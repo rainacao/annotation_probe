@@ -603,6 +603,11 @@ export async function studyStoreCreator(
     {
       reducer: storeSlice.reducer,
       preloadedState: initialState,
+      // Redux Toolkit's development-only checks walk the whole store on every dispatch. Drawing
+      // trials dispatch every ~100 ms while the pen moves and every trial's drawing history stays
+      // in the store, so under `yarn serve` the checks made drawing slower with each trial
+      // (scripts/check-drawing-lag.mjs). Production builds never run them.
+      middleware: (getDefaultMiddleware) => getDefaultMiddleware({ serializableCheck: false, immutableCheck: false }),
     },
   );
 

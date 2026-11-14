@@ -1,11 +1,12 @@
-// Walk all 12 items at two viewports (with `yarn serve` running) and check each graph fits inside the stage, has its top/bottom white padding, and that the preceding fixation cross was centred on it.
-// Run: node scripts/check-stimulus-fit.mjs <screenshot-dir>
+// Walk every item of a study at two viewports (with `yarn serve` running) and check each graph fits inside the stage, has its top/bottom white padding, and that the preceding fixation cross was centred on it. Needs fixation turned on.
+// Run: node scripts/check-stimulus-fit.mjs <screenshot-dir> [studyId (default vlat-graphs)]
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ channel: 'chrome' });
 for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
   const page = await browser.newPage({ viewport: vp });
-  await page.goto('http://localhost:8080/vlat-graphs');
-  for (let i = 0; i < 12; i += 1) {
+  await page.goto(`http://localhost:8080/${process.argv[3] || 'vlat-graphs'}`);
+  const end = page.getByText('Thank you');
+  for (let i = 0; !(await end.isVisible()); i += 1) {
     const cross = page.locator('.fixation-cross');
     await cross.waitFor({ timeout: 20000 });
     await page.waitForTimeout(200);
@@ -26,8 +27,7 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     // The NASA-TLX page only appears when it is turned on (scripts/set_trial_steps.py).
     const tlx = page.getByText('Mental Demand');
-    const next = i < 11 ? page.locator('.fixation-cross') : page.getByText('Thank you');
-    await Promise.race([tlx.waitFor(), next.waitFor()]);
+    await Promise.race([tlx.waitFor(), page.locator('.fixation-cross').waitFor(), end.waitFor()]);
     if (await tlx.isVisible()) {
       const sliders = page.locator('.mantine-Slider-root');
       for (let j = 0; j < 6; j += 1) { const b = await sliders.nth(j).boundingBox(); await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2); }

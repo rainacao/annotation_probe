@@ -7,7 +7,9 @@ Each library item becomes the trio fixation-<item> -> graph-<item> -> tlx-<item>
 library's image on our drawing trial, with the item's question as the answer prompt and its options
 and correct answer copied exactly. The sequence mirrors one of the library's own sequences, including
 any nested random draws. Shared settings (uiConfig and the fixation, graph, and nasa-tlx base
-components) are copied from a template config, so the new study has its own copy of each.
+components) are copied from a template config, so the new study has its own copy of each. The
+template's opening pages (the components listed by name before its first item, e.g. consent and
+introduction) are copied too and shown first, in the same order.
 
 Usage:
     uv run scripts/import_library_items.py calvi --sequence full --study-id calvi-annotation \\
@@ -103,6 +105,15 @@ def build_config(library: str, library_config: dict[str, Any], sequence: str, te
     converted = convert_block(sequences[sequence], items)
     converted.pop("id", None)
     components: dict[str, Any] = {}
+    # Opening pages (e.g. consent, then the introduction the participant starts from, so the first
+    # fixation begins on their cue) come before the first item in the template's sequence.
+    opening: list[str] = []
+    for entry in template["sequence"]["components"]:
+        if not isinstance(entry, str):
+            break
+        opening.append(entry)
+        components[entry] = copy.deepcopy(template["components"][entry])
+    converted["components"][:0] = opening
     for key in library_config["components"]:
         if key in items:
             components.update(convert_item(library, key, library_config["components"][key], ref))

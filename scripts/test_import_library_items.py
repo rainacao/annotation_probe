@@ -51,7 +51,12 @@ class ImportLibraryItemsTest(unittest.TestCase):
 
     def test_items_and_answers_are_copied(self) -> None:
         components = self.config["components"]
-        self.assertEqual(sorted(components), sorted(f"{step}-{key}" for key in ("bars", "T1", "T2") for step in ("fixation", "graph", "tlx")))
+        self.assertEqual(
+            sorted(components),
+            sorted(["consent", "introduction", *(f"{step}-{key}" for key in ("bars", "T1", "T2") for step in ("fixation", "graph", "tlx"))]),
+        )
+        self.assertEqual(components["introduction"], self.template["components"]["introduction"])
+        self.assertEqual(components["consent"], self.template["components"]["consent"])
         bars, t1 = components["graph-bars"], components["graph-T1"]
         self.assertEqual(bars["response"], [{"id": "answer", "type": "radio", "prompt": "Which bar is tallest?", "options": ["A", "B"]}])
         self.assertEqual(bars["correctAnswer"], [{"id": "answer", "answer": "B"}])
@@ -66,6 +71,8 @@ class ImportLibraryItemsTest(unittest.TestCase):
     def test_sequence_keeps_nested_random_draw(self) -> None:
         sequence = self.config["sequence"]
         self.assertEqual(sequence["order"], "fixed")
+        self.assertEqual(sequence["components"][:2], ["consent", "introduction"])
+        sequence = {**sequence, "components": sequence["components"][2:]}
         self.assertEqual(sequence["components"][0], {"id": "bars", "order": "fixed", "components": ["fixation-bars", "graph-bars", "tlx-bars"]})
         draw = sequence["components"][1]
         self.assertEqual((draw["order"], draw["numSamples"], [block["id"] for block in draw["components"]]), ("random", 1, ["T1", "T2"]))
@@ -73,7 +80,7 @@ class ImportLibraryItemsTest(unittest.TestCase):
     def test_steps_switch_reaches_nested_items(self) -> None:
         set_trial_steps.set_steps(self.config, fixation=False, tlx=False)
         self.assertEqual(set_trial_steps.current_steps(self.config), {"fixation": False, "tlx": False})
-        self.assertEqual(self.config["sequence"]["components"][1]["components"][0]["components"], ["graph-T1"])
+        self.assertEqual(self.config["sequence"]["components"][3]["components"][0]["components"], ["graph-T1"])
 
     def test_shared_settings_are_copied_not_shared(self) -> None:
         self.assertEqual(self.config["baseComponents"], self.template["baseComponents"])

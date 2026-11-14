@@ -6,7 +6,7 @@
 Each item block in `sequence` is rebuilt as fixation-<key> -> graph-<key> -> tlx-<key>, keeping
 only the steps that are on. Component definitions are never removed, so steps can be turned back on.
 
-Usage:
+Usage (add --config <path> for a study other than Mini-VLAT, e.g. public/annotation-probe/calvi-config.json):
     uv run scripts/set_trial_steps.py                       # show the current setting
     uv run scripts/set_trial_steps.py --no-tlx              # fixation on (unchanged), TLX off
     uv run scripts/set_trial_steps.py --fixation --tlx      # both on
@@ -25,11 +25,20 @@ OPTIONAL_STEPS = ("fixation", "tlx")
 
 
 def item_blocks(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """Sequence blocks that hold one item's steps, identified by their graph-<key> component."""
-    return [
-        block for block in config["sequence"]["components"]
-        if isinstance(block, dict) and f"graph-{block.get('id')}" in block.get("components", [])
-    ]
+    """Sequence blocks that hold one item's steps, identified by their graph-<key> component.
+    Searches nested blocks too (e.g. a random draw of items inside the sequence)."""
+    blocks: list[dict[str, Any]] = []
+
+    def visit(block: dict[str, Any]) -> None:
+        if f"graph-{block.get('id')}" in block.get("components", []):
+            blocks.append(block)
+            return
+        for child in block.get("components", []):
+            if isinstance(child, dict):
+                visit(child)
+
+    visit(config["sequence"])
+    return blocks
 
 
 def current_steps(config: dict[str, Any]) -> dict[str, bool | None]:
@@ -56,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fixation", action=argparse.BooleanOptionalAction, help="fixation baseline before each graph")
     parser.add_argument("--tlx", action=argparse.BooleanOptionalAction, help="NASA-TLX after each graph")
-    parser.add_argument("--config", type=Path, default=CONFIG, help=argparse.SUPPRESS)
+    parser.add_argument("--config", type=Path, default=CONFIG, help=f"study config to change (default: {CONFIG.relative_to(CONFIG.parents[2])})")
     args = parser.parse_args(argv)
 
     config = json.loads(args.config.read_text(encoding="utf-8"))

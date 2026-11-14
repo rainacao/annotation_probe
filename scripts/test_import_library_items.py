@@ -87,6 +87,17 @@ class ImportLibraryItemsTest(unittest.TestCase):
         self.assertIsNot(self.config["baseComponents"], self.template["baseComponents"])
         self.assertEqual(self.config["studyMetadata"]["title"], "Demo")
 
+    def test_shuffled_sequence_keeps_opening_pages_first(self) -> None:
+        library = {**LIBRARY, "sequences": {"shuffled": {"id": "mix", "order": "random", "components": ["bars", "T1"]}}}
+        config = importer.build_config("demo", library, "shuffled", self.template, title="Demo", ref="abc123")
+        sequence = config["sequence"]
+        self.assertEqual(sequence["order"], "fixed")
+        self.assertEqual(sequence["components"][:2], ["consent", "introduction"])
+        inner = sequence["components"][2]
+        self.assertEqual((inner["id"], inner["order"], [block["id"] for block in inner["components"]]), ("mix", "random", ["bars", "T1"]))
+        set_trial_steps.set_steps(config, fixation=False, tlx=False)
+        self.assertEqual(inner["components"][0]["components"], ["graph-bars"])
+
     def test_unknown_sequence_is_an_error(self) -> None:
         with self.assertRaises(SystemExit):
             importer.build_config("demo", LIBRARY, "missing", self.template, title="Demo", ref="abc123")

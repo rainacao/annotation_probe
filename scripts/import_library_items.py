@@ -113,7 +113,12 @@ def build_config(library: str, library_config: dict[str, Any], sequence: str, te
             break
         opening.append(entry)
         components[entry] = copy.deepcopy(template["components"][entry])
-    converted["components"][:0] = opening
+    if opening and converted.get("order") != "fixed":
+        # A shuffled library sequence (e.g. CALVI specificBank) must not shuffle the opening pages, so
+        # they go first in a fixed outer block and the library's items follow as one nested block.
+        converted = {"order": "fixed", "components": [*opening, {"id": sequences[sequence].get("id", sequence), **converted}]}
+    else:
+        converted["components"][:0] = opening
     for key in library_config["components"]:
         if key in items:
             components.update(convert_item(library, key, library_config["components"][key], ref))

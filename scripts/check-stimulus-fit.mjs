@@ -24,10 +24,15 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
     console.log(vp.width, r.name.padEnd(16), 'fits', fits, 'img', Math.round(r.img.width), 'x', Math.round(r.img.height), 'pad top/bottom', Math.round(r.img.top - r.bd.top), Math.round(r.bd.bottom - r.img.bottom), 'cross off', dx.toFixed(2), dy.toFixed(2));
     await page.getByRole('radio').first().check();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await page.getByText('Mental Demand').waitFor();
-    const sliders = page.locator('.mantine-Slider-root');
-    for (let j = 0; j < 6; j += 1) { const b = await sliders.nth(j).boundingBox(); await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2); }
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    // The NASA-TLX page only appears when it is turned on (scripts/set_trial_steps.py).
+    const tlx = page.getByText('Mental Demand');
+    const next = i < 11 ? page.locator('.fixation-cross') : page.getByText('Thank you');
+    await Promise.race([tlx.waitFor(), next.waitFor()]);
+    if (await tlx.isVisible()) {
+      const sliders = page.locator('.mantine-Slider-root');
+      for (let j = 0; j < 6; j += 1) { const b = await sliders.nth(j).boundingBox(); await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2); }
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+    }
     if (i === 0) await page.screenshot({ path: process.argv[2] + `/fit-${vp.width}.png` });
   }
   await page.close();

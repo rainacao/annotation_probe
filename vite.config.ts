@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import { coverageConfigDefaults } from 'vitest/config';
 
 // https://vitejs.dev/config/
@@ -11,6 +12,9 @@ export default defineConfig(({ command, mode }) => {
     base: command === 'build' ? (env.VITE_BASE_PATH || '/') : '/',
     plugins: [
       react({ devTarget: 'es2022' }),
+      // `yarn serve:https`: other devices on the network need HTTPS, since reVISit uses
+      // secure-context-only APIs (crypto.subtle) that browsers only allow on https or localhost.
+      ...(process.env.REVISIT_HTTPS ? [basicSsl()] : []),
     ],
     resolve: {
       alias: {

@@ -17,6 +17,8 @@
 }
 
 .annotation-controls {
+  /* Keep the tool buttons on the right, where they sat beside the old drawing hint. */
+  justify-content: flex-end;
   flex-wrap: wrap;
   color: var(--mantine-color-dimmed);
   font-size: var(--mantine-font-size-sm);

@@ -211,6 +211,37 @@
     }
   },
   "components": {
+    "consent": {
+      "type": "markdown",
+      "path": "annotation-probe/consent.md",
+      "description": "PLACEHOLDER consent page; replace consent.md with the approved IRB text before running participants.",
+      "nextButtonText": "Agree",
+      "nextButtonLocation": "belowStimulus",
+      "withSidebar": false,
+      "response": [
+        {
+          "id": "accept",
+          "prompt": "Do you consent to take part in this study?",
+          "location": "belowStimulus",
+          "type": "radio",
+          "required": true,
+          "requiredValue": "Accept",
+          "options": [
+            "Decline",
+            "Accept"
+          ]
+        }
+      ]
+    },
+    "introduction": {
+      "type": "markdown",
+      "path": "annotation-probe/introduction.md",
+      "description": "Study introduction; the participant presses Start when ready, so the first fixation baseline starts on their cue.",
+      "nextButtonText": "Start",
+      "nextButtonLocation": "belowStimulus",
+      "withSidebar": false,
+      "response": []
+    },
     "fixation-treemap": {
       "baseComponent": "fixation",
       "parameters": {
@@ -665,6 +696,8 @@
   "sequence": {
     "order": "fixed",
     "components": [
+      "consent",
+      "introduction",
       {
         "id": "treemap",
         "order": "fixed",

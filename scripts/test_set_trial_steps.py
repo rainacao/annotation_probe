@@ -30,7 +30,8 @@ class SetTrialStepsTest(unittest.TestCase):
         return {block["id"]: block["components"] for block in steps.item_blocks(config)}
 
     def test_toggle_off_and_back_on(self) -> None:
-        original = json.loads(self.config.read_text())
+        # Start from both steps on, whatever the live config currently has.
+        original = self.run_script("--fixation", "--tlx")
         config = self.run_script("--no-tlx")
         self.assertEqual(self.blocks(config)["treemap"], ["fixation-treemap", "graph-treemap"])
         config = self.run_script("--no-fixation")

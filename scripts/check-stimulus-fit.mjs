@@ -1,11 +1,28 @@
-// Walk all 12 items at two viewports (with `yarn serve` running) and check each graph fits inside the stage, has its top/bottom white padding, and that the preceding fixation cross was centred on it.
-// Run: node scripts/check-stimulus-fit.mjs <screenshot-dir>
+// Walk every item of a study at two viewports (with `yarn serve` running) and check each graph fits inside the stage, has its top/bottom white padding, and that the preceding fixation cross was centred on it. Needs fixation turned on.
+// Run: node scripts/check-stimulus-fit.mjs <screenshot-dir> [studyId (default vlat-graphs)]
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ channel: 'chrome' });
 for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
   const page = await browser.newPage({ viewport: vp });
-  await page.goto('http://localhost:8080/vlat-graphs');
-  for (let i = 0; i < 12; i += 1) {
+  // Fetch chart images from Node: the test browser's own connection to GitHub sometimes drops.
+  const images = new Map();
+  await page.route('https://raw.githubusercontent.com/**', async (route) => {
+    const url = route.request().url();
+    if (!images.has(url)) images.set(url, await route.fetch());
+    await route.fulfill({ response: images.get(url) });
+  });
+  await page.goto(`http://localhost:8080/${process.argv[3] || 'vlat-graphs'}`);
+  // Opening pages: accept consent if the study shows it, then press Start on the introduction.
+  const consent = page.getByText('Consent to Participate');
+  const start = page.getByRole('button', { name: 'Start' });
+  await Promise.race([consent.waitFor(), start.waitFor()]);
+  if (await consent.isVisible()) {
+    await page.getByRole('radio', { name: 'Accept' }).check();
+    await page.getByRole('button', { name: 'Agree' }).click();
+  }
+  await start.click();
+  const end = page.getByText('Thank you');
+  for (let i = 0; !(await end.isVisible()); i += 1) {
     const cross = page.locator('.fixation-cross');
     await cross.waitFor({ timeout: 20000 });
     await page.waitForTimeout(200);
@@ -24,10 +41,22 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
     console.log(vp.width, r.name.padEnd(16), 'fits', fits, 'img', Math.round(r.img.width), 'x', Math.round(r.img.height), 'pad top/bottom', Math.round(r.img.top - r.bd.top), Math.round(r.bd.bottom - r.img.bottom), 'cross off', dx.toFixed(2), dy.toFixed(2));
     await page.getByRole('radio').first().check();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await page.getByText('Mental Demand').waitFor();
-    const sliders = page.locator('.mantine-Slider-root');
-    for (let j = 0; j < 6; j += 1) { const b = await sliders.nth(j).boundingBox(); await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2); }
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    // The NASA-TLX page only appears when it is turned on (scripts/set_trial_steps.py).
+    const tlx = page.getByText('Mental Demand');
+    await Promise.race([tlx.waitFor(), page.locator('.fixation-cross').waitFor(), page.getByText('Short break').waitFor(), end.waitFor()]);
+    // A validation break (import_library_items.py --break-page) waits for Continue; check it doesn't advance on its own.
+    const pause = page.getByText('Short break');
+    if (await pause.isVisible()) {
+      await page.waitForTimeout(2000);
+      console.log(vp.width, '-- break, still waiting after 2 s:', await pause.isVisible());
+      await page.getByRole('button', { name: 'Continue' }).click();
+      await Promise.race([page.locator('.fixation-cross').waitFor(), end.waitFor()]);
+    }
+    if (await tlx.isVisible()) {
+      const sliders = page.locator('.mantine-Slider-root');
+      for (let j = 0; j < 6; j += 1) { const b = await sliders.nth(j).boundingBox(); await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2); }
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+    }
     if (i === 0) await page.screenshot({ path: process.argv[2] + `/fit-${vp.width}.png` });
   }
   await page.close();

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "serve": "vite --host=0.0.0.0 --port=8080",
+    "serve:https": "REVISIT_HTTPS=1 vite --host=0.0.0.0 --port=8443",
     "typecheck": "tsc --noEmit",
     "build": "tsc && vite build",
     "lint": "eslint src",
@@ -101,6 +102,7 @@
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
     "@typescript/native": "npm:typescript@^7.0.2",
+    "@vitejs/plugin-basic-ssl": "2.3.0",
     "@vitejs/plugin-react-swc": "^4.3.2",
     "@vitest/coverage-v8": "5.0.5",
     "eslint": "^9.39.5",

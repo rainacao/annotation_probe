@@ -98,6 +98,48 @@ class ImportLibraryItemsTest(unittest.TestCase):
         set_trial_steps.set_steps(config, fixation=False, tlx=False)
         self.assertEqual(inner["components"][0]["components"], ["graph-bars"])
 
+    def test_items_take_their_image_from_a_library_base_component(self) -> None:
+        # VLAT style: the image path lives on the library's base component, shared by several questions.
+        library = {
+            "baseComponents": {
+                "line": {"type": "image", "path": "https://example.test/line.png", "nextButtonDisableTime": 25000},
+                "bar": {"type": "image", "path": "https://example.test/bar.png"},
+            },
+            "components": {
+                "line-value": {"baseComponent": "line", "instruction": "Price in May?", "meta": {"chartType": "line"},
+                               "response": [{"id": "r1", "type": "radio", "prompt": "Your answer", "options": ["1", "2", "Skip"]}],
+                               "correctAnswer": [{"id": "r1", "answer": "2"}]},
+                "line-trend": {"baseComponent": "line", "instruction": "Trend?",
+                               "response": [{"id": "r2", "type": "radio", "prompt": "Your answer", "options": ["Up", "Down"]}]},
+                "bar-value": {"baseComponent": "bar", "instruction": "Tallest?",
+                              "response": [{"id": "r3", "type": "radio", "prompt": "Your answer", "options": ["A", "B"]}]},
+            },
+            "sequences": {"full": {"id": "all", "order": "latinSquare", "components": [
+                {"id": "lines", "order": "latinSquare", "components": ["line-value", "line-trend"]},
+                {"id": "bars", "order": "random", "numSamples": 1, "components": ["bar-value"]},
+            ]}},
+        }
+        config = importer.build_config("demo", library, "full", self.template, title="Demo", ref="abc123",
+                                       base_components=["line"], opening_pages=["introduction"])
+        components = config["components"]
+        self.assertEqual(sorted(k for k in components if k.startswith("graph-")), ["graph-line-trend", "graph-line-value"])
+        self.assertEqual(components["graph-line-value"]["parameters"]["imageUrl"], "https://example.test/line.png")
+        self.assertEqual(components["fixation-line-trend"]["parameters"]["imageUrl"], "https://example.test/line.png")
+        self.assertEqual(components["graph-line-value"]["correctAnswer"], [{"id": "answer", "answer": "2"}])
+        self.assertNotIn("nextButtonDisableTime", json.dumps(config))
+        self.assertNotIn("consent", components)
+        sequence = config["sequence"]
+        self.assertEqual((sequence["order"], sequence["components"][0]), ("fixed", "introduction"))
+        items = sequence["components"][1]
+        self.assertEqual(items["order"], "latinSquare")
+        self.assertEqual([block["id"] for block in items["components"]], ["lines"])  # the emptied bar block is gone
+
+    def test_unknown_base_component_or_opening_page_is_an_error(self) -> None:
+        with self.assertRaises(SystemExit):
+            importer.build_config("demo", LIBRARY, "bank", self.template, title="Demo", ref="abc123", base_components=["nope"])
+        with self.assertRaises(SystemExit):
+            importer.build_config("demo", LIBRARY, "bank", self.template, title="Demo", ref="abc123", opening_pages=["nope"])
+
     def test_unknown_sequence_is_an_error(self) -> None:
         with self.assertRaises(SystemExit):
             importer.build_config("demo", LIBRARY, "missing", self.template, title="Demo", ref="abc123")

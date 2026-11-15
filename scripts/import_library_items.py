@@ -9,7 +9,9 @@ and correct answer copied exactly. The sequence mirrors one of the library's own
 any nested random draws. Shared settings (uiConfig and the fixation, graph, and nasa-tlx base
 components) are copied from a template config, so the new study has its own copy of each. The
 template's opening pages (the components listed by name before its first item, e.g. consent and
-introduction) are copied too and shown first, in the same order.
+introduction) are copied too and shown first, in the same order; --opening picks a subset. Items that take their
+image from a library base component (VLAT) get it from there; --base-component keeps only the items built on
+the named base components (for VLAT, chart types such as line, area, stackarea).
 
 Usage:
     uv run scripts/import_library_items.py calvi --sequence full --study-id calvi-annotation \\
@@ -28,6 +30,7 @@ import copy
 import json
 import sys
 import urllib.request
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -52,6 +55,13 @@ def fetch_library(name: str, ref: str) -> dict[str, Any]:
 def image_url(path: str, ref: str) -> str:
     """Library image paths are either full URLs or relative to the upstream public/ folder."""
     return path if path.startswith(("http://", "https://")) else f"{UPSTREAM}/{ref}/public/{path.lstrip('/')}"
+
+
+def resolve_item(library_config: dict[str, Any], key: str) -> dict[str, Any]:
+    """A library item with its library base component merged in (VLAT keeps each chart's image there)."""
+    item = library_config["components"][key]
+    base = library_config.get("baseComponents", {}).get(item.get("baseComponent", ""), {})
+    return {**base, **item, "meta": {**base.get("meta", {}), **item.get("meta", {})}}
 
 
 def convert_item(library: str, key: str, item: dict[str, Any], ref: str) -> dict[str, dict[str, Any]]:
@@ -82,35 +92,61 @@ def convert_item(library: str, key: str, item: dict[str, Any], ref: str) -> dict
     }
 
 
-def convert_block(block: dict[str, Any], items: set[str]) -> dict[str, Any]:
-    """A library sequence block -> ours: each item name becomes a fixed block of its three steps."""
+def convert_block(block: dict[str, Any], items: set[str], keep: Callable[[str], bool] = lambda _key: True) -> dict[str, Any]:
+    """A library sequence block -> ours: each item name becomes a fixed block of its three steps.
+
+    Items `keep` rejects are left out, along with any block they leave empty; a random draw
+    (numSamples) never asks for more items than remain.
+    """
     converted: dict[str, Any] = {key: value for key, value in block.items() if key in {"id", "order", "numSamples"}}
     children = []
     for child in block["components"]:
         if isinstance(child, str):
+            if not keep(child):
+                continue
             items.add(child)
             children.append({"id": child, "order": "fixed", "components": [f"fixation-{child}", f"graph-{child}", f"tlx-{child}"]})
         else:
-            children.append(convert_block(child, items))
+            nested = convert_block(child, items, keep)
+            if nested["components"]:
+                children.append(nested)
     converted["components"] = children
+    if "numSamples" in converted:
+        converted["numSamples"] = min(converted["numSamples"], len(children))
     return converted
 
 
 def build_config(library: str, library_config: dict[str, Any], sequence: str, template: dict[str, Any],
-                 *, title: str, ref: str) -> dict[str, Any]:
+                 *, title: str, ref: str, base_components: list[str] | None = None,
+                 opening_pages: list[str] | None = None) -> dict[str, Any]:
     sequences = library_config.get("sequences", {})
     if sequence not in sequences:
         raise SystemExit(f"error: {library} has no sequence {sequence!r}; choose from {', '.join(sequences)}")
+    if base_components:
+        known = set(library_config.get("baseComponents", {}))
+        unknown = [name for name in base_components if name not in known]
+        if unknown:
+            raise SystemExit(f"error: {library} has no base component {', '.join(unknown)}; choose from {', '.join(sorted(known))}")
+
+    def keep(key: str) -> bool:
+        return not base_components or library_config["components"][key].get("baseComponent") in base_components
     items: set[str] = set()
-    converted = convert_block(sequences[sequence], items)
+    converted = convert_block(sequences[sequence], items, keep)
+    if not items:
+        raise SystemExit(f"error: no {library} items left in sequence {sequence!r} after filtering")
     converted.pop("id", None)
     components: dict[str, Any] = {}
     # Opening pages (e.g. consent, then the introduction the participant starts from, so the first
     # fixation begins on their cue) come before the first item in the template's sequence.
     opening: list[str] = []
+    template_opening: list[str] = []
     for entry in template["sequence"]["components"]:
         if not isinstance(entry, str):
             break
+        template_opening.append(entry)
+    for entry in template_opening if opening_pages is None else opening_pages:
+        if entry not in template_opening:
+            raise SystemExit(f"error: the template has no opening page {entry!r}; choose from {', '.join(template_opening)}")
         opening.append(entry)
         components[entry] = copy.deepcopy(template["components"][entry])
     if opening and converted.get("order") != "fixed":
@@ -121,7 +157,7 @@ def build_config(library: str, library_config: dict[str, Any], sequence: str, te
         converted["components"][:0] = opening
     for key in library_config["components"]:
         if key in items:
-            components.update(convert_item(library, key, library_config["components"][key], ref))
+            components.update(convert_item(library, key, resolve_item(library_config, key), ref))
     reference = library_config.get("reference", "")
     return {
         "$schema": template["$schema"],
@@ -130,7 +166,8 @@ def build_config(library: str, library_config: dict[str, Any], sequence: str, te
             "title": title,
             "date": date.today().isoformat(),
             "description": (
-                f"{len(items)} items from the reVISit {library} library (sequence {sequence!r}) with multiple-choice "
+                f"{len(items)} items from the reVISit {library} library (sequence {sequence!r}"
+                f"{', chart types ' + ', '.join(base_components) if base_components else ''}) with multiple-choice "
                 f"answers and drawing. Generated by scripts/import_library_items.py. {reference}"
             ).strip(),
         },
@@ -159,6 +196,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, type=Path, help="config file to write, under public/")
     parser.add_argument("--ref", default=DEFAULT_REF, help="revisit-studies/study commit to read the library from")
     parser.add_argument("--template", type=Path, default=TEMPLATE, help="config to copy uiConfig and base components from")
+    parser.add_argument("--base-component", action="append", dest="base_components", metavar="NAME",
+                        help="keep only items built on this library base component (VLAT: one per chart type, e.g. line); repeatable")
+    parser.add_argument("--opening", nargs="*", metavar="PAGE",
+                        help="opening pages to copy from the template, in order (default: all of them, e.g. consent introduction)")
     parser.add_argument("--fixation", action=argparse.BooleanOptionalAction, default=True, help="fixation before each graph")
     parser.add_argument("--tlx", action=argparse.BooleanOptionalAction, default=True, help="NASA-TLX after each graph")
     parser.add_argument("--library-file", type=Path, help=argparse.SUPPRESS)  # local library config, for tests
@@ -170,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
         json.loads(args.library_file.read_text(encoding="utf-8")) if args.library_file else fetch_library(args.library, args.ref)
     )
     template = json.loads(args.template.read_text(encoding="utf-8"))
-    config = build_config(args.library, library_config, args.sequence, template, title=args.title, ref=args.ref)
+    config = build_config(args.library, library_config, args.sequence, template, title=args.title, ref=args.ref,
+                          base_components=args.base_components, opening_pages=args.opening)
     set_trial_steps.set_steps(config, fixation=args.fixation, tlx=args.tlx)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")

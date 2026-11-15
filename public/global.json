@@ -2,7 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/revisit-studies/study/v3.0.0/src/parser/GlobalConfigSchema.json",
   "configsList": [
     "vlat-graphs",
-    "calvi-annotation"
+    "calvi-annotation",
+    "vlat-line-area"
   ],
   "configs": {
     "vlat-graphs": {
@@ -10,6 +11,9 @@
     },
     "calvi-annotation": {
       "path": "annotation-probe/calvi-config.json"
+    },
+    "vlat-line-area": {
+      "path": "annotation-probe/vlat-line-area-config.json"
     }
   }
 }

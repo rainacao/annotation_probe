@@ -1748,7 +1748,6 @@
   "sequence": {
     "order": "fixed",
     "components": [
-      "consent",
       "introduction",
       {
         "id": "calviSetTrick",

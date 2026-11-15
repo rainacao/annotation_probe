@@ -50,12 +50,15 @@ def clock_offset(recording: Path) -> float:
     return info["start_time_system_s"] - info["start_time_synced_s"]
 
 
-def trial_windows(participant: dict[str, Any], offset: float, prefix: str) -> list[tuple[str, float, float]]:
+def trial_windows(participant: dict[str, Any], offset: float, prefix: str) -> list[tuple[str, str, float, float]]:
+    """(identifier, component name, start, end) per matching answer, in Pupil time. The identifier
+    (`<component>_<position>`) tells repeated components apart, e.g. each validation break."""
     rows = []
     for key, answer in participant["answers"].items():
         if answer.get("componentName", key).startswith(prefix) and answer.get("startTime") and answer.get("endTime"):
-            rows.append((answer.get("componentName", key), answer["startTime"] / 1000 - offset, answer["endTime"] / 1000 - offset))
-    return sorted(rows, key=lambda row: row[1])
+            rows.append((answer.get("identifier", key), answer.get("componentName", key),
+                         answer["startTime"] / 1000 - offset, answer["endTime"] / 1000 - offset))
+    return sorted(rows, key=lambda row: row[2])
 
 
 def angle_deg(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -145,12 +148,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Saccades (I-VT): {args.velocity_threshold:g} deg/s, span {args.velocity_span}, >= {args.min_saccade_ms:g} ms, "
           f"amplitude >= {min_amplitude:.2f} deg, confidence >= {min_confidence:.2f}; {len(saccades)} in the recording")
     rows = []
-    for name, start, end in windows:
+    for identifier, name, start, end in windows:
         inside = [f for f in fixations if start <= f["timestamp"] < end]
         in_window = [g for g in gaze if start <= g["timestamp"] < end]
         valid = sum(g["confidence"] >= min_confidence for g in in_window) / max(1, len(in_window))
         rows.append({
             "trial": name,
+            "position": identifier.rpartition("_")[2],
             "duration_s": round(end - start, 2),
             "fixations": len(inside),
             "fixations_capped": sum(f["duration"] >= meta["max_duration"] - 2 for f in inside),

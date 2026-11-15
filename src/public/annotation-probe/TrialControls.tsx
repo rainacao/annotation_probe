@@ -25,7 +25,6 @@ export function TrialControls({
       className={`annotation-controls${placeholder ? ' fixation-placeholder' : ''}`}
       aria-hidden={placeholder || undefined}
     >
-      <span>Draw anywhere with your mouse, finger, or stylus.</span>
       <div className="annotation-actions">
         <button type="button" tabIndex={tabIndex} aria-pressed={tool === 'pen'} disabled={disabled} onClick={() => onTool?.('pen')}>Pen</button>
         <button type="button" tabIndex={tabIndex} aria-pressed={tool === 'eraser'} disabled={disabled} onClick={() => onTool?.('eraser')}>Eraser</button>

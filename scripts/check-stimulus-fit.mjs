@@ -4,7 +4,23 @@ import { chromium } from 'playwright';
 const browser = await chromium.launch({ channel: 'chrome' });
 for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
   const page = await browser.newPage({ viewport: vp });
+  // Fetch chart images from Node: the test browser's own connection to GitHub sometimes drops.
+  const images = new Map();
+  await page.route('https://raw.githubusercontent.com/**', async (route) => {
+    const url = route.request().url();
+    if (!images.has(url)) images.set(url, await route.fetch());
+    await route.fulfill({ response: images.get(url) });
+  });
   await page.goto(`http://localhost:8080/${process.argv[3] || 'vlat-graphs'}`);
+  // Opening pages: accept consent if the study shows it, then press Start on the introduction.
+  const consent = page.getByText('Consent to Participate');
+  const start = page.getByRole('button', { name: 'Start' });
+  await Promise.race([consent.waitFor(), start.waitFor()]);
+  if (await consent.isVisible()) {
+    await page.getByRole('radio', { name: 'Accept' }).check();
+    await page.getByRole('button', { name: 'Agree' }).click();
+  }
+  await start.click();
   const end = page.getByText('Thank you');
   for (let i = 0; !(await end.isVisible()); i += 1) {
     const cross = page.locator('.fixation-cross');

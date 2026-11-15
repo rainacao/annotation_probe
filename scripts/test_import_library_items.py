@@ -134,6 +134,23 @@ class ImportLibraryItemsTest(unittest.TestCase):
         self.assertEqual(items["order"], "latinSquare")
         self.assertEqual([block["id"] for block in items["components"]], ["lines"])  # the emptied bar block is gone
 
+    def test_break_page_follows_each_group(self) -> None:
+        library = {**LIBRARY, "sequences": {"grouped": {"id": "all", "order": "latinSquare", "components": [
+            {"id": "g1", "order": "latinSquare", "components": ["bars", "T1"]},
+            {"id": "g2", "order": "fixed", "components": ["T2"]},
+        ]}}}
+        config = importer.build_config("demo", library, "grouped", self.template, title="Demo", ref="abc123",
+                                       opening_pages=["introduction"], break_page="annotation-probe/validation-break.md")
+        groups = config["sequence"]["components"][1]["components"]
+        self.assertEqual([(g["id"], g["order"], g["components"][-1]) for g in groups],
+                         [("g1-then-break", "fixed", importer.BREAK), ("g2-then-break", "fixed", importer.BREAK)])
+        self.assertEqual(groups[0]["components"][0]["order"], "latinSquare")
+        self.assertEqual(config["components"][importer.BREAK]["path"], "annotation-probe/validation-break.md")
+        self.assertEqual(len(set_trial_steps.item_blocks(config)), 3)
+        flat = {**LIBRARY, "sequences": {"flat": {"id": "all", "order": "fixed", "components": ["bars", "T1"]}}}
+        with self.assertRaises(SystemExit):  # only single items, no groups to follow
+            importer.build_config("demo", flat, "flat", self.template, title="Demo", ref="abc123", break_page="x.md")
+
     def test_unknown_base_component_or_opening_page_is_an_error(self) -> None:
         with self.assertRaises(SystemExit):
             importer.build_config("demo", LIBRARY, "bank", self.template, title="Demo", ref="abc123", base_components=["nope"])

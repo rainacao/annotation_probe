@@ -11,7 +11,8 @@ components) are copied from a template config, so the new study has its own copy
 template's opening pages (the components listed by name before its first item, e.g. consent and
 introduction) are copied too and shown first, in the same order; --opening picks a subset. Items that take their
 image from a library base component (VLAT) get it from there; --base-component keeps only the items built on
-the named base components (for VLAT, chart types such as line, area, stackarea).
+the named base components (for VLAT, chart types such as line, area, stackarea). --break-page adds a
+click-to-continue page after each top-level group of items (for VLAT, after each chart type).
 
 Usage:
     uv run scripts/import_library_items.py calvi --sequence full --study-id calvi-annotation \\
@@ -43,6 +44,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PUBLIC = ROOT / "public"
 TEMPLATE = PUBLIC / "annotation-probe" / "config.json"
 UPSTREAM = "https://raw.githubusercontent.com/revisit-studies/study"
+BREAK = "validation-break"
 # revisit-studies/study main on 2026-11-14.
 DEFAULT_REF = "278db9d4f39feb7fed6b92e7fe857b45380f54ef"
 
@@ -118,7 +120,7 @@ def convert_block(block: dict[str, Any], items: set[str], keep: Callable[[str], 
 
 def build_config(library: str, library_config: dict[str, Any], sequence: str, template: dict[str, Any],
                  *, title: str, ref: str, base_components: list[str] | None = None,
-                 opening_pages: list[str] | None = None) -> dict[str, Any]:
+                 opening_pages: list[str] | None = None, break_page: str | None = None) -> dict[str, Any]:
     sequences = library_config.get("sequences", {})
     if sequence not in sequences:
         raise SystemExit(f"error: {library} has no sequence {sequence!r}; choose from {', '.join(sequences)}")
@@ -136,6 +138,28 @@ def build_config(library: str, library_config: dict[str, Any], sequence: str, te
         raise SystemExit(f"error: no {library} items left in sequence {sequence!r} after filtering")
     converted.pop("id", None)
     components: dict[str, Any] = {}
+    if break_page:
+        # A click-to-continue page after each top-level group (for VLAT: each chart type), e.g. for an
+        # eye-tracker validation. The group's own order (e.g. latinSquare) stays inside; the page always ends it.
+        def is_group(child: Any) -> bool:  # a nested block of items, not one item's own steps
+            return isinstance(child, dict) and f"graph-{child.get('id')}" not in child["components"]
+
+        if not any(is_group(child) for child in converted["components"]):
+            raise SystemExit(f"error: sequence {sequence!r} has no groups of items to put a break page after")
+        converted["components"] = [
+            {"id": f"{child.get('id', f'group{index}')}-then-break", "order": "fixed", "components": [child, BREAK]}
+            if is_group(child) else child
+            for index, child in enumerate(converted["components"], start=1)
+        ]
+        components[BREAK] = {
+            "type": "markdown",
+            "path": break_page,
+            "description": "Break after each group of items; the participant presses Continue when the researcher has finished an eye-tracker validation.",
+            "nextButtonText": "Continue",
+            "nextButtonLocation": "belowStimulus",
+            "withSidebar": False,
+            "response": [],
+        }
     # Opening pages (e.g. consent, then the introduction the participant starts from, so the first
     # fixation begins on their cue) come before the first item in the template's sequence.
     opening: list[str] = []
@@ -200,6 +224,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="keep only items built on this library base component (VLAT: one per chart type, e.g. line); repeatable")
     parser.add_argument("--opening", nargs="*", metavar="PAGE",
                         help="opening pages to copy from the template, in order (default: all of them, e.g. consent introduction)")
+    parser.add_argument("--break-page", metavar="MARKDOWN",
+                        help="markdown page (path under public/) shown after each top-level group of items, with a Continue button")
     parser.add_argument("--fixation", action=argparse.BooleanOptionalAction, default=True, help="fixation before each graph")
     parser.add_argument("--tlx", action=argparse.BooleanOptionalAction, default=True, help="NASA-TLX after each graph")
     parser.add_argument("--library-file", type=Path, help=argparse.SUPPRESS)  # local library config, for tests
@@ -212,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     template = json.loads(args.template.read_text(encoding="utf-8"))
     config = build_config(args.library, library_config, args.sequence, template, title=args.title, ref=args.ref,
-                          base_components=args.base_components, opening_pages=args.opening)
+                          base_components=args.base_components, opening_pages=args.opening, break_page=args.break_page)
     set_trial_steps.set_steps(config, fixation=args.fixation, tlx=args.tlx)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")

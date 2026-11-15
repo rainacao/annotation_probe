@@ -211,6 +211,15 @@
     }
   },
   "components": {
+    "validation-break": {
+      "type": "markdown",
+      "path": "annotation-probe/validation-break.md",
+      "description": "Break after each group of items; the participant presses Continue when the researcher has finished an eye-tracker validation.",
+      "nextButtonText": "Continue",
+      "nextButtonLocation": "belowStimulus",
+      "withSidebar": false,
+      "response": []
+    },
     "introduction": {
       "type": "markdown",
       "path": "annotation-probe/introduction.md",
@@ -913,141 +922,162 @@
         "order": "latinSquare",
         "components": [
           {
-            "id": "vlat-line",
-            "order": "latinSquare",
+            "id": "vlat-line-then-break",
+            "order": "fixed",
             "components": [
               {
-                "id": "line-value",
-                "order": "fixed",
+                "id": "vlat-line",
+                "order": "latinSquare",
                 "components": [
-                  "fixation-line-value",
-                  "graph-line-value"
+                  {
+                    "id": "line-value",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-line-value",
+                      "graph-line-value"
+                    ]
+                  },
+                  {
+                    "id": "line-extremum",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-line-extremum",
+                      "graph-line-extremum"
+                    ]
+                  },
+                  {
+                    "id": "line-range",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-line-range",
+                      "graph-line-range"
+                    ]
+                  },
+                  {
+                    "id": "line-trends",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-line-trends",
+                      "graph-line-trends"
+                    ]
+                  },
+                  {
+                    "id": "line-comparisons",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-line-comparisons",
+                      "graph-line-comparisons"
+                    ]
+                  }
                 ]
               },
-              {
-                "id": "line-extremum",
-                "order": "fixed",
-                "components": [
-                  "fixation-line-extremum",
-                  "graph-line-extremum"
-                ]
-              },
-              {
-                "id": "line-range",
-                "order": "fixed",
-                "components": [
-                  "fixation-line-range",
-                  "graph-line-range"
-                ]
-              },
-              {
-                "id": "line-trends",
-                "order": "fixed",
-                "components": [
-                  "fixation-line-trends",
-                  "graph-line-trends"
-                ]
-              },
-              {
-                "id": "line-comparisons",
-                "order": "fixed",
-                "components": [
-                  "fixation-line-comparisons",
-                  "graph-line-comparisons"
-                ]
-              }
+              "validation-break"
             ]
           },
           {
-            "id": "vlat-area",
-            "order": "latinSquare",
+            "id": "vlat-area-then-break",
+            "order": "fixed",
             "components": [
               {
-                "id": "area-value",
-                "order": "fixed",
+                "id": "vlat-area",
+                "order": "latinSquare",
                 "components": [
-                  "fixation-area-value",
-                  "graph-area-value"
+                  {
+                    "id": "area-value",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-area-value",
+                      "graph-area-value"
+                    ]
+                  },
+                  {
+                    "id": "area-extremum",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-area-extremum",
+                      "graph-area-extremum"
+                    ]
+                  },
+                  {
+                    "id": "area-range",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-area-range",
+                      "graph-area-range"
+                    ]
+                  },
+                  {
+                    "id": "area-trends",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-area-trends",
+                      "graph-area-trends"
+                    ]
+                  }
                 ]
               },
-              {
-                "id": "area-extremum",
-                "order": "fixed",
-                "components": [
-                  "fixation-area-extremum",
-                  "graph-area-extremum"
-                ]
-              },
-              {
-                "id": "area-range",
-                "order": "fixed",
-                "components": [
-                  "fixation-area-range",
-                  "graph-area-range"
-                ]
-              },
-              {
-                "id": "area-trends",
-                "order": "fixed",
-                "components": [
-                  "fixation-area-trends",
-                  "graph-area-trends"
-                ]
-              }
+              "validation-break"
             ]
           },
           {
-            "id": "vlat-stackarea",
-            "order": "latinSquare",
+            "id": "vlat-stackarea-then-break",
+            "order": "fixed",
             "components": [
               {
-                "id": "stackarea-value-absolute",
-                "order": "fixed",
+                "id": "vlat-stackarea",
+                "order": "latinSquare",
                 "components": [
-                  "fixation-stackarea-value-absolute",
-                  "graph-stackarea-value-absolute"
+                  {
+                    "id": "stackarea-value-absolute",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-stackarea-value-absolute",
+                      "graph-stackarea-value-absolute"
+                    ]
+                  },
+                  {
+                    "id": "stackarea-value-relative",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-stackarea-value-relative",
+                      "graph-stackarea-value-relative"
+                    ]
+                  },
+                  {
+                    "id": "stackarea-extremum",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-stackarea-extremum",
+                      "graph-stackarea-extremum"
+                    ]
+                  },
+                  {
+                    "id": "stackarea-trends",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-stackarea-trends",
+                      "graph-stackarea-trends"
+                    ]
+                  },
+                  {
+                    "id": "stackarea-comparisons",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-stackarea-comparisons",
+                      "graph-stackarea-comparisons"
+                    ]
+                  },
+                  {
+                    "id": "stackarea-comparisons-relative",
+                    "order": "fixed",
+                    "components": [
+                      "fixation-stackarea-comparisons-relative",
+                      "graph-stackarea-comparisons-relative"
+                    ]
+                  }
                 ]
               },
-              {
-                "id": "stackarea-value-relative",
-                "order": "fixed",
-                "components": [
-                  "fixation-stackarea-value-relative",
-                  "graph-stackarea-value-relative"
-                ]
-              },
-              {
-                "id": "stackarea-extremum",
-                "order": "fixed",
-                "components": [
-                  "fixation-stackarea-extremum",
-                  "graph-stackarea-extremum"
-                ]
-              },
-              {
-                "id": "stackarea-trends",
-                "order": "fixed",
-                "components": [
-                  "fixation-stackarea-trends",
-                  "graph-stackarea-trends"
-                ]
-              },
-              {
-                "id": "stackarea-comparisons",
-                "order": "fixed",
-                "components": [
-                  "fixation-stackarea-comparisons",
-                  "graph-stackarea-comparisons"
-                ]
-              },
-              {
-                "id": "stackarea-comparisons-relative",
-                "order": "fixed",
-                "components": [
-                  "fixation-stackarea-comparisons-relative",
-                  "graph-stackarea-comparisons-relative"
-                ]
-              }
+              "validation-break"
             ]
           }
         ]

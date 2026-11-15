@@ -43,7 +43,15 @@ for (const vp of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     // The NASA-TLX page only appears when it is turned on (scripts/set_trial_steps.py).
     const tlx = page.getByText('Mental Demand');
-    await Promise.race([tlx.waitFor(), page.locator('.fixation-cross').waitFor(), end.waitFor()]);
+    await Promise.race([tlx.waitFor(), page.locator('.fixation-cross').waitFor(), page.getByText('Short break').waitFor(), end.waitFor()]);
+    // A validation break (import_library_items.py --break-page) waits for Continue; check it doesn't advance on its own.
+    const pause = page.getByText('Short break');
+    if (await pause.isVisible()) {
+      await page.waitForTimeout(2000);
+      console.log(vp.width, '-- break, still waiting after 2 s:', await pause.isVisible());
+      await page.getByRole('button', { name: 'Continue' }).click();
+      await Promise.race([page.locator('.fixation-cross').waitFor(), end.waitFor()]);
+    }
     if (await tlx.isVisible()) {
       const sliders = page.locator('.mantine-Slider-root');
       for (let j = 0; j < 6; j += 1) { const b = await sliders.nth(j).boundingBox(); await page.mouse.click(b.x + b.width * 0.3, b.y + b.height / 2); }
